@@ -1,15 +1,15 @@
 import sys
-from Context import Context
-from Processor import Processor
-
-# import cv2 as cv
+from Contexts import Context
 
 def main() -> int:
     context = Context.Create()
-    cameras = context.GetCameras()
-   
-    processor = Processor.Init(cameras[0])
-   
+    try:
+        cameras = context.GetCameras()
+        cameras[0].Display()
+    except Exception as ex:
+        print(f"Error: {ex}") 
+        return 1 
+    
     context.Release()
     return 0
 
