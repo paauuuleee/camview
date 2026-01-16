@@ -7,32 +7,33 @@ class PixelFormat:
     RGB = 0
     BGR = 1
 
-FrameFilter: TypeAlias = Callable[[Frame, PixelFormat], Frame]
+FrameFilter: TypeAlias = Callable[[Frame], Frame]
 
 class ProcessFilter:
     @staticmethod
-    def MEDIAN(frame: Frame, format: PixelFormat) -> Frame:
-        pass 
+    def MEDIAN(ksize) -> FrameFilter:
+        return lambda frame: cv.medianBlur(frame, ksize)
 
 class Processor:
-    def __init__(self, pixel_format: PixelFormat, conversion_code: int, filters: tuple[FrameFilter, ...]):
-        self._format = pixel_format
+    def __init__(self, conversion_code: int, filters: tuple[FrameFilter, ...]):
         self._conversion_code = conversion_code
         self._filters = filters
 
     @classmethod
     def create(cls, pixel_format: PixelFormat, *filters: FrameFilter) -> Processor:
         conversion_code = cls._get_conversion_code(pixel_format)
-        return cls(pixel_format, conversion_code, filters)
+        return cls(conversion_code, filters)
     
     @staticmethod
     def _get_conversion_code(pixel_format: PixelFormat) -> int:
         match pixel_format:
-            case PixelFormat.RGB: return cv.COLOR_BayerBG2RGB
-            case PixelFormat.BGR: return cv.COLOR_BayerBG2BGR
+            case PixelFormat.RGB: return cv.COLOR_BayerBGR2RGB
+            case PixelFormat.BGR: return -1
 
     def process(self, bayer_frame: Frame) -> Frame:
-        frame = cv.cvtColor(bayer_frame, self._conversion_code)
+        frame = cv.cvtColor(bayer_frame, cv.COLOR_BayerBG2BGR)
         for filter in self._filters:
-            frame = filter(frame, self._format)
-        return frame
+            frame = filter(frame)
+        if self._conversion_code == -1:
+            return frame
+        return cv.cvtColor(frame, self._conversion_code)

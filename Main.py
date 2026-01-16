@@ -1,6 +1,6 @@
 import sys
 from Contexts import Context
-from Processors import Processor, PixelFormat
+from Processors import Processor, PixelFormat, ProcessFilter
 from Dispatchers import Viewer
 
 def main() -> int:
@@ -12,7 +12,7 @@ def main() -> int:
         print(f"CamView Error: {ex}")
         return 1
     
-    processor = Processor.create(PixelFormat.BGR)
+    processor = Processor.create(PixelFormat.BGR, ProcessFilter.MEDIAN(3))
     viewer = Viewer.create(cameras[0], processor)
     viewer.consumer_loop()
     

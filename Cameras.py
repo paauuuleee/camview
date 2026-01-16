@@ -31,6 +31,8 @@ class Camera:
                 cam.TLStream.StreamMode.SetValue(PySpin.StreamMode_LWF)
             case StreamMode.SOCKET:
                 cam.TLStream.StreamMode.SetValue(PySpin.StreamMode_Socket)
+        
+        
 
         desc = CameraDescriptor(
             cam.DeviceVendorName.GetValue(), 
@@ -45,9 +47,16 @@ class Camera:
     def descriptor(self) -> CameraDescriptor:
         return self._desc
     
+    def setup(self, config = None) -> None:
+        try:
+            self._cam.TLStream.StreamBufferHandlingMode.SetValue(PySpin.StreamBufferHandlingMode_NewestOnly)
+            self._cam.AcquisitionMode.SetValue(PySpin.AcquisitionMode_Continuous)
+        except PySpin.SpinnakerException as ex:
+            print(f"Error during camera setup: {ex}")
+            raise
+    
     def begin(self) -> None:
         try:
-            self._cam.AcquisitionMode.SetValue(PySpin.AcquisitionMode_Continuous)
             self._cam.BeginAcquisition()
         except PySpin.SpinnakerException as ex:
             print(f"Cannot begin image aqcisition: {ex}")
