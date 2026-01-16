@@ -10,7 +10,7 @@ class Context:
         self._cameras: list[Camera] = []
 
     @classmethod
-    def Create(cls) -> Context:
+    def create(cls) -> Context:
         system = PySpin.System.GetInstance()
         
         stream_mode = StreamMode.TELEDYN_GIGE_VISION
@@ -20,17 +20,17 @@ class Context:
         
         return cls(system, stream_mode)
     
-    def Release(self) -> None:
-        for cam in self._cameras: cam.DeInit() 
+    def release(self) -> None:
+        for cam in self._cameras: cam.deinit() 
         self._cam_list.Clear()
         self._system.ReleaseInstance()
 
-    def GetCameras(self) -> list[Camera]:
+    def get_cameras(self) -> list[Camera]:
         self._cam_list = self._system.GetCameras()
 
         if self._cam_list.GetSize() == 0:
-            self.Release()
+            self.release()
             raise Exception("No cameras connected.")
 
-        self._cameras = [Camera.Init(cam, self._stream_mode) for cam in self._cam_list] 
+        self._cameras = [Camera.init(cam, self._stream_mode) for cam in self._cam_list] 
         return self._cameras

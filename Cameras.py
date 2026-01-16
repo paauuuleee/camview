@@ -1,8 +1,7 @@
 from __future__ import annotations
 import PySpin
 from dataclasses import dataclass
-import cv2 as cv
-from Utils import Timer
+from Utils import Frame
 
 @dataclass
 class CameraDescriptor:
@@ -22,7 +21,7 @@ class Camera:
         self._desc = desc
     
     @classmethod
-    def Init(cls, cam: PySpin.CameraPtr, stream_mode: StreamMode) -> Camera:
+    def init(cls, cam: PySpin.CameraPtr, stream_mode: StreamMode) -> Camera:
         cam.Init()
         
         match stream_mode:
@@ -32,63 +31,47 @@ class Camera:
                 cam.TLStream.StreamMode.SetValue(PySpin.StreamMode_LWF)
             case StreamMode.SOCKET:
                 cam.TLStream.StreamMode.SetValue(PySpin.StreamMode_Socket)
-        
-        vendor_name = cam.DeviceVendorName.GetValue()
-        model_name = cam.DeviceModelName.GetValue()
-        width = cam.Width.GetValue()
-        height = cam.Height.GetValue()
-        desc = CameraDescriptor(vendor_name, model_name, width, height)
+
+        desc = CameraDescriptor(
+            cam.DeviceVendorName.GetValue(), 
+            cam.DeviceModelName.GetValue(), 
+            cam.Width.GetValue(), 
+            cam.Height.GetValue()
+        )
 
         return cls(cam, desc)
 
     @property
-    def Descriptor(self) -> CameraDescriptor:
+    def descriptor(self) -> CameraDescriptor:
         return self._desc
     
-    def Setup(self) -> None:
+    def begin(self) -> None:
         try:
             self._cam.AcquisitionMode.SetValue(PySpin.AcquisitionMode_Continuous)
-        except PySpin.SpinnakerException as ex:
-            print(f"Error: {ex}")
-            raise
-    
-    def Display(self) -> None:
-        self.Setup()
-
-        try:
             self._cam.BeginAcquisition()
-            cv.namedWindow("camview", cv.WINDOW_AUTOSIZE)
-
-            timer = Timer.Create(100, lambda fps: print(f"Frame rate: {fps:.1f}"))
-            timer.Start()
-
-            while True:
-                raw_frame = self.Acquire()
-                frame = self.Process(raw_frame)
-                cv.imshow("camview", frame)
-
-                timer.Frame()
-            
-                if cv.waitKey(1) & 0xFF == ord(' '):
-                    break
-            
-            self._cam.EndAcquisition()
         except PySpin.SpinnakerException as ex:
-            print(f"Error: {ex}")
+            print(f"Cannot begin image aqcisition: {ex}")
             raise
 
-    def Process(self, bayer_frame: cv.typing.MatLike) -> cv.typing.MatLike:
-        return cv.cvtColor(bayer_frame, cv.COLOR_BayerBG2BGR)
-
-    def Acquire(self) -> cv.typing.MatLike:
+    def acquire(self) -> Frame:
         try:
             image = self._cam.GetNextImage()
-            if not image.IsIncomplete():
-                return image.GetNDArray().copy()
-        except PySpin.SpinnakerException as ex:
-            print(f"Error: {ex}")
+            if image.IsIncomplete():
+                raise Exception("Image is incomplete.")
+            frame = image.GetNDArray().copy()
+            image.Release()
+            return frame
+        except Exception as ex:
+            print(f"Acqisistion Error: {ex}")
             raise
 
-    def DeInit(self):
+    def end(self) -> None:
+        try:
+            self._cam.EndAcquisition()
+        except PySpin.SpinnakerException as ex:
+            print(f"Error while ending acquisition: {ex}")
+            raise
+
+    def deinit(self):
         self._cam.DeInit()
         del self._cam
