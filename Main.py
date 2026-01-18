@@ -1,7 +1,11 @@
 import sys
 from Contexts import Context
-from Processors import Processor, PixelFormat, ProcessFilter
+from Processors import Processor, ProcessFilter
 from Dispatchers import Viewer
+from Utils import Timer
+
+def timer_callback(fps: float, ftime: float) -> None:
+    print(f"Frame rate: {fps:.1} FPS | Average frame time: {(1000 * ftime):.1f} ms")
 
 def main() -> int:
     context = Context.create()
@@ -12,9 +16,10 @@ def main() -> int:
         print(f"CamView Error: {ex}")
         return 1
     
-    processor = Processor.create(PixelFormat.BGR, ProcessFilter.MEDIAN(3))
+    processor = Processor.create(ProcessFilter.MEDIAN(3))
     viewer = Viewer.create(cameras[0], processor)
-    viewer.consumer_loop()
+    viewer.add_timer(Timer.create(100, timer_callback))
+    viewer.dispatch()
     
     context.release()
     return 0
