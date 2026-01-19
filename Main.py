@@ -1,11 +1,11 @@
 import sys
 from Contexts import Context
 from Processors import Processor, ProcessFilter
-from Dispatchers import Viewer
+from Dispatchers import Consumer
 from Utils import Timer
 
 def timer_callback(fps: float, ftime: float) -> None:
-    print(f"Frame rate: {fps:.1} FPS | Average frame time: {(1000 * ftime):.1f} ms")
+    print(f"Frame rate: {fps:.1f} FPS | Average frame time: {(1000 * ftime):.1f} ms")
 
 def main() -> int:
     context = Context.create()
@@ -17,9 +17,9 @@ def main() -> int:
         return 1
     
     processor = Processor.create(ProcessFilter.MEDIAN(3))
-    viewer = Viewer.create(cameras[0], processor)
-    viewer.add_timer(Timer.create(100, timer_callback))
-    viewer.dispatch()
+    consumer = Consumer.create(cameras[0], processor)
+    consumer.add_timer(Timer.create(100, timer_callback))
+    consumer.dispatch()
     
     context.release()
     return 0

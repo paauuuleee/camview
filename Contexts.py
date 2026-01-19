@@ -27,7 +27,7 @@ class Context:
         """
         system = PySpin.System.GetInstance()
         
-        stream_mode = StreamMode.TELEDYN_GIGE_VISION
+        stream_mode = StreamMode.TELEDYNE_GIGE_VISION
         os = platform.system()
         if os == "Linux" or os == "Darwin":
             stream_mode = StreamMode.SOCKET
@@ -51,7 +51,7 @@ class Context:
         :raises RuntimeError: If no cameras are connected. 
         Context object is already properly released and does not requiere additional cleanup.
         """
-        self._cam_list = self._system.GetCameras()
+        self._cam_list: PySpin.CameraList = self._system.GetCameras()
 
         if self._cam_list.GetSize() == 0:
             self.release()

@@ -6,6 +6,21 @@ import cv2 as cv
 from Utils import Timer, Frame
 import keyboard
 import threading
+import pygame
+import numpy
+
+def break_on(key: str) -> threading.Event:
+    """
+    Helper function to define a break condition on specific keyboard input to stop the acquisition loop..
+        
+    :param key: Keyboard input to set the break condition
+    :type key: str
+    :return: Thread signal that is set whenever specified keyboard input is detected.
+    :rtype: threading.Event
+    """
+    break_condition = threading.Event()
+    keyboard.add_hotkey(key, lambda: break_condition.set())
+    return break_condition
 
 class Dispatcher(ABC):
     """
@@ -37,19 +52,7 @@ class Dispatcher(ABC):
         """
         return cls(cam, processor)
 
-    @staticmethod
-    def break_on(key: str) -> threading.Event:
-        """
-        Helper function to define a break condition on specific keyboard input to stop the acquisition loop..
-        
-        :param key: Keyboard input to set the break condition
-        :type key: str
-        :return: Thread signal that is set whenever specified keyboard input is detected.
-        :rtype: threading.Event
-        """
-        break_condition = threading.Event()
-        keyboard.add_hotkey(key, lambda: break_condition.set())
-        return break_condition
+
     
     def add_timer(self, timer: Timer) -> None:
         """
@@ -106,8 +109,43 @@ class Dispatcher(ABC):
         This is supposed to contain the acqusition and processing loop.
         """
         pass
-    
-class Viewer(Dispatcher):
+
+class Consumer(Dispatcher):
+    def setup(self) -> pygame.Surface:
+        size = (self._cam.descriptor.Width, self._cam.descriptor.Height)
+        pygame.init()
+        icon = numpy.zeros((32, 32, 3), numpy.uint8)
+        icon_surface = pygame.surfarray.make_surface(icon)
+        pygame.display.set_icon(icon_surface)
+        pygame.display.set_caption(f"CamView for {self._cam.descriptor.VendorName} {self._cam.descriptor.ModelName}")
+        return pygame.display.set_mode(size)
+        
+
+    def dispatch(self) -> None:
+        screen = self.setup()
+        
+        try:
+            self.setup_and_begin(PixelFormat.RGB)
+
+            break_cond = break_on('space')
+            while not break_cond.is_set():
+                try:
+                    frame = self.next_frame()
+                    frame = numpy.rot90(frame)
+                    surface = pygame.surfarray.make_surface(frame)
+                    screen.blit(surface, (0, 0))
+                    pygame.display.flip()
+                except Exception as ex:
+                    print(f"Error: {ex}")
+                    continue
+        except Exception as ex:
+            print(f"Error: {ex}")
+        finally:
+            self.end_and_cleanup()
+            pygame.quit()
+
+'''
+class ViewerOpenCV(Dispatcher):
     """
     Child class of the Dispatcher interface that works as a consumer class. It displays the processed frames to the screen.
     """
@@ -117,13 +155,14 @@ class Viewer(Dispatcher):
         """
         window_name = f"CamView for {self._cam.descriptor.VendorName} {self._cam.descriptor.ModelName}"
         cv.namedWindow(window_name, cv.WINDOW_AUTOSIZE)
+
         try:
             self.setup_and_begin(PixelFormat.BGR)
             
-            break_cond = self.break_on("space")
+            break_cond = break_on('space')
             while not break_cond.is_set():
                 try:
-                    frame = self.next_frame(frame)
+                    frame = self.next_frame()
                     cv.imshow(window_name, frame)
                     cv.waitKey(1)
                 except Exception as ex:
@@ -134,3 +173,4 @@ class Viewer(Dispatcher):
         finally:
             self.end_and_cleanup()
             cv.destroyAllWindows()
+'''

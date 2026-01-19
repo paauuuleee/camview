@@ -88,6 +88,7 @@ class Camera:
         try:
             self._cam.TLStream.StreamBufferHandlingMode.SetValue(PySpin.StreamBufferHandlingMode_NewestOnly)
             self._cam.AcquisitionMode.SetValue(PySpin.AcquisitionMode_Continuous)
+            self._cam.AcquisitionFrameRate.SetValue(200)
         except PySpin.SpinnakerException as ex:
             print(f"Error during camera setup: {ex}")
             raise

@@ -36,6 +36,9 @@ class ProcessFilter:
         :rtype: FrameFilter
         """
         return lambda frame: cv.medianBlur(frame, ksize)
+    
+    def SUBSTRACT(sub: Frame) -> FrameFilter:
+        return lambda frame: cv.subtract(frame, sub)
         
 
 class Processor:
