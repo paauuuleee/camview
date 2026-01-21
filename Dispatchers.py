@@ -1,15 +1,17 @@
 from __future__ import annotations
 from abc import ABC, abstractmethod
 from Cameras import Camera
-from Processors import Processor, PixelFormat
+from Processors import Processor
 import cv2 as cv
-from Utils import Timer, Frame
+import numpy as np
+from Utils import Timer, Frame, Image
 import keyboard
 import threading
 import pygame
 import numpy
+import scipy.optimize as so
 
-def break_on(key: str) -> threading.Event:
+def keyboard_signal(key: str) -> threading.Event:
     """
     Helper function to define a break condition on specific keyboard input to stop the acquisition loop..
         
@@ -18,9 +20,9 @@ def break_on(key: str) -> threading.Event:
     :return: Thread signal that is set whenever specified keyboard input is detected.
     :rtype: threading.Event
     """
-    break_condition = threading.Event()
-    keyboard.add_hotkey(key, lambda: break_condition.set())
-    return break_condition
+    signal = threading.Event()
+    keyboard.add_hotkey(key, lambda: signal.set())
+    return signal
 
 class Dispatcher(ABC):
     """
@@ -64,7 +66,7 @@ class Dispatcher(ABC):
         """
         self._timer = timer
     
-    def setup_and_begin(self, pixel_format: PixelFormat, config = None) -> None:
+    def setup_and_begin(self, config = None) -> None:
         """
         Final setup of the camera image processing pipeline by specifying the desired pixel format and additional camera device settings.
         Then it starts the image acquisition of the camera.
@@ -75,13 +77,12 @@ class Dispatcher(ABC):
         
         :raises PySpin.SpinnakerException: May fail to setup the camera and start acqusition.
         """
-        self._processor.setup(pixel_format)
         self._cam.setup(config)
         self._cam.begin()
         if not self._timer == None:
             self._timer.start()
 
-    def next_frame(self) -> Frame:
+    def next_frame(self) -> tuple[Image, Frame, Frame]:
         """
         Acquires the frame from the pysical camera device and processes the frame data once according to the processing pipeline.
         Optinally if a timer object was configured prior it triggers the timer.frame() method to measure the frame time.
@@ -91,8 +92,10 @@ class Dispatcher(ABC):
         """
         if not self._timer == None:
             self._timer.frame()
-        bayer_frame = self._cam.acquire()
-        return self._processor.process(bayer_frame)
+        raw_image = self._cam.acquire()
+        mono_frame = self._processor.convert_color(raw_image)
+        processed_frame = self._processor.process(mono_frame)
+        return raw_image, mono_frame, processed_frame
 
     def end_and_cleanup(self) -> None:
         """
@@ -114,25 +117,30 @@ class Consumer(Dispatcher):
     def setup(self) -> pygame.Surface:
         size = (self._cam.descriptor.Width, self._cam.descriptor.Height)
         pygame.init()
-        icon = numpy.zeros((32, 32, 3), numpy.uint8)
-        icon_surface = pygame.surfarray.make_surface(icon)
-        pygame.display.set_icon(icon_surface)
         pygame.display.set_caption(f"CamView for {self._cam.descriptor.VendorName} {self._cam.descriptor.ModelName}")
         return pygame.display.set_mode(size)
         
-
     def dispatch(self) -> None:
         screen = self.setup()
-        
-        try:
-            self.setup_and_begin(PixelFormat.RGB)
+        show_processed = False
 
-            break_cond = break_on('space')
+        try:
+            self.setup_and_begin()
+
+            break_cond = keyboard_signal('space')
+            switch = keyboard_signal('s')
             while not break_cond.is_set():
+                if switch.is_set():
+                    switch.clear()
+                    show_processed = not show_processed
                 try:
-                    frame = self.next_frame()
-                    frame = numpy.rot90(frame)
-                    surface = pygame.surfarray.make_surface(frame)
+                    raw_image, mono_frame, processed_frame = self.next_frame()
+                    gauss_fit(processed_frame)
+                    
+                    show_frame = processed_frame if show_processed else mono_frame
+                    show_frame = cv.cvtColor(show_frame, cv.COLOR_GRAY2RGB)
+                    show_frame = numpy.rot90(show_frame)
+                    surface = pygame.surfarray.make_surface(show_frame)
                     screen.blit(surface, (0, 0))
                     pygame.display.flip()
                 except Exception as ex:
@@ -144,33 +152,29 @@ class Consumer(Dispatcher):
             self.end_and_cleanup()
             pygame.quit()
 
-'''
-class ViewerOpenCV(Dispatcher):
-    """
-    Child class of the Dispatcher interface that works as a consumer class. It displays the processed frames to the screen.
-    """
-    def dispatch(self) -> None:
-        """
-        Implementation of the dispatch method of the Dispatcher interface that streams the image feed of the camera to the screen.
-        """
-        window_name = f"CamView for {self._cam.descriptor.VendorName} {self._cam.descriptor.ModelName}"
-        cv.namedWindow(window_name, cv.WINDOW_AUTOSIZE)
+def projection(frame: Frame) -> tuple[list[int], list[int]]:
+    hori_proj = np.sum(frame, 0)
+    vert_proj = np.sum(frame, 1)
+    return hori_proj, vert_proj
 
-        try:
-            self.setup_and_begin(PixelFormat.BGR)
-            
-            break_cond = break_on('space')
-            while not break_cond.is_set():
-                try:
-                    frame = self.next_frame()
-                    cv.imshow(window_name, frame)
-                    cv.waitKey(1)
-                except Exception as ex:
-                    print(f"Error: {ex}")
-                    continue
-        except Exception as ex:
-            print(f"Cannot view camera. {ex}")
-        finally:
-            self.end_and_cleanup()
-            cv.destroyAllWindows()
-'''
+def gauss_fit(frame: Frame):
+    hori_proj, vert_proj = projection(frame)
+
+    def gauss(x: float, amplitude: float, center: float, sigma: float, offset: float) -> float:
+        return amplitude * np.exp(-1 * ((x - center)**2 / 2 * sigma**2) + offset)
+
+    amplitude_guess = np.max(hori_proj)
+    center_guess = hori_proj.index(amplitude_guess)
+
+    mean = 0.0
+    for i, value in enumerate(hori_proj):
+        mean += i * value
+    meam /= len(hori_proj)
+
+    sigma_guess = 0.0
+    for i, value in enumerate(hori_proj):
+        sigma_guess = (value - mean)**2
+    sigma_guess = np.sqrt(sigma_guess / len(hori_proj))
+    offset_guess = np.min(hori_proj)
+
+    so.curve_fit()

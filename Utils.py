@@ -1,5 +1,6 @@
 from __future__ import annotations
 import time
+from dataclasses import dataclass
 from typing import Callable, TypeAlias
 import cv2 as cv
 
@@ -7,6 +8,19 @@ Frame: TypeAlias = cv.typing.MatLike
 """
 Type alias for a pixel array (Frame data)
 """
+
+class CaptureFormat:
+    MONO8 = "Mono8"
+    BAYER_RG8 = "BayerRG8"
+    RGB8 = "RGB8"
+
+@dataclass
+class Image:
+    frame_id: int
+    timestamp: int
+    exposure_time: float
+    capture_format: CaptureFormat
+    frame: Frame
 
 class Timer:
     """

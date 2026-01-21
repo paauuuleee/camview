@@ -4,8 +4,8 @@ from Processors import Processor, ProcessFilter
 from Dispatchers import Consumer
 from Utils import Timer
 
-def timer_callback(fps: float, ftime: float) -> None:
-    print(f"Frame rate: {fps:.1f} FPS | Average frame time: {(1000 * ftime):.1f} ms")
+def timer_callback(fps: float, _: float) -> None:
+    print(f"Frame rate: {fps:.1f} FPS")
 
 def main() -> int:
     context = Context.create()
@@ -16,9 +16,9 @@ def main() -> int:
         print(f"CamView Error: {ex}")
         return 1
     
-    processor = Processor.create(ProcessFilter.MEDIAN(3))
+    processor = Processor.create(ProcessFilter.MEDIAN(3), ProcessFilter.THRESHOLD(10))
     consumer = Consumer.create(cameras[0], processor)
-    consumer.add_timer(Timer.create(100, timer_callback))
+    consumer.add_timer(Timer.create(1000, timer_callback))
     consumer.dispatch()
     
     context.release()

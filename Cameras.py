@@ -1,7 +1,7 @@
 from __future__ import annotations
 import PySpin
 from dataclasses import dataclass
-from Utils import Frame
+from Utils import Image
 
 @dataclass
 class CameraDescriptor:
@@ -88,7 +88,21 @@ class Camera:
         try:
             self._cam.TLStream.StreamBufferHandlingMode.SetValue(PySpin.StreamBufferHandlingMode_NewestOnly)
             self._cam.AcquisitionMode.SetValue(PySpin.AcquisitionMode_Continuous)
-            self._cam.AcquisitionFrameRate.SetValue(200)
+
+            self._cam.AcquisitionFrameRateEnable.SetValue(True)
+            self._cam.ExposureAuto.SetValue(PySpin.ExposureAuto_Off)
+            self._cam.GainAuto.SetValue(PySpin.GainAuto_Off)
+            self._cam.GammaEnable.SetValue(True)
+
+            self._cam.ExposureTime.SetValue(800)
+            max_fps = self._cam.AcquisitionFrameRate.GetMax()
+            self._cam.AcquisitionFrameRate.SetValue(max_fps)
+
+            self._cam.ChunkModeActive.SetValue(True)
+            self._cam.ChunkSelector.SetValue(PySpin.ChunkSelector_FrameID)
+            self._cam.ChunkSelector.SetValue(PySpin.ChunkSelector_Timestamp)
+            self._cam.ChunkSelector.SetValue(PySpin.ChunkSelector_ExposureTime)
+        
         except PySpin.SpinnakerException as ex:
             print(f"Error during camera setup: {ex}")
             raise
@@ -100,12 +114,13 @@ class Camera:
         :raises PySpin.SpinnakerException: May fail to start the image acquisition.
         """
         try:
+            self._cam.TimestampReset.Execute()
             self._cam.BeginAcquisition()
         except PySpin.SpinnakerException as ex:
             print(f"Cannot begin image acquisition: {ex}")
             raise
 
-    def acquire(self) -> Frame:
+    def acquire(self) -> Image:
         """
         Acquires an image from the pysical camera device and returns it as frame data (2D Array) in BayerBG format.
         In the case of an Exception, try to handle it gracefully and continue acquiring, because a lost frame does not close the acquisition.
@@ -117,9 +132,16 @@ class Camera:
             image = self._cam.GetNextImage()
             if image.IsIncomplete():
                 raise ValueError("Image is incomplete.")
-            frame = image.GetNDArray().copy()
+            
+            chunk_data = image.GetChunkData()
+            frame_id = chunk_data.GetFrameID()
+            timestamp = chunk_data.GetTimestamp()
+            exposure_time = chunk_data.GetExposureTime()
+            capture_format = image.GetPixelFormatName()
+            capture = image.GetNDArray().copy()
+            
             image.Release()
-            return frame
+            return Image(frame_id, timestamp, exposure_time, capture_format, capture)
         except Exception as ex:
             print(f"Acqisistion Error: {ex}")
             raise

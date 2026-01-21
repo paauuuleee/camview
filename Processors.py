@@ -1,8 +1,9 @@
 from __future__ import annotations
-from Utils import Frame
+from Utils import Frame, Image, CaptureFormat
 from typing import TypeAlias, Callable
 import cv2 as cv
 
+'''
 class PixelFormat:
     """
     Configuration class for the resulting pixel format after processing the frame.
@@ -15,6 +16,7 @@ class PixelFormat:
     """
     Pixel format of (blue - uint8, green - uint8, red - uint8)
     """
+'''
 
 FrameFilter: TypeAlias = Callable[[Frame], Frame]
 """
@@ -39,7 +41,15 @@ class ProcessFilter:
     
     def SUBSTRACT(sub: Frame) -> FrameFilter:
         return lambda frame: cv.subtract(frame, sub)
-        
+    
+    def CROP(width: int, height: int, offset_x: int, offset_y: int) -> FrameFilter:
+        return lambda frame: frame[offset_y:offset_y + height, offset_x:offset_x + width]
+    
+    def THRESHOLD(value: int) -> FrameFilter:
+        def threshold(frame: Frame, value: int) -> Frame:
+            frame[frame < value] = 0
+            return frame
+        return lambda frame: threshold(frame, value)
 
 class Processor:
     def __init__(self, filters: tuple[FrameFilter, ...]):
@@ -61,6 +71,7 @@ class Processor:
         """
         return cls(filters)
     
+    '''
     def setup(self, pixel_format: PixelFormat) -> None:
         """
         Setup the desired pixel format that the resulting frame should be converted to.
@@ -78,17 +89,14 @@ class Processor:
         match pixel_format:
             case PixelFormat.RGB: return cv.COLOR_BayerBG2RGB
             case PixelFormat.BGR: return cv.COLOR_BayerBG2BGR
-
-    def process(self, bayer_frame: Frame) -> Frame:
-        """
-        First converts the passed in image frame of the camera and converts it from BayerBG8 to the desired pixel format and then applies all specified FrameFilters before it returns the result.
-        
-        :param bayer_frame: Pass the acquired image frame from the camera in here.
-        :type bayer_frame: Frame
-        :return: Processed frame data with correct pixel format and all FrameFilters applied. 
-        :rtype: Frame
-        """
-        frame = cv.cvtColor(bayer_frame, self._conversion_code)
+    '''
+    @staticmethod
+    def convert_color(raw_image: Image) -> Frame:
+        if raw_image.capture_format == CaptureFormat.MONO8:
+            return raw_image.frame.copy()
+        return cv.cvtColor(raw_image.frame, cv.COLOR_BayerBG2GRAY)
+    
+    def process(self, frame: Frame) -> Frame:
         for filter in self._filters:
             frame = filter(frame)
         return frame
