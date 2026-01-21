@@ -1,26 +1,15 @@
 from __future__ import annotations
-import time
+
 from dataclasses import dataclass
 from typing import Callable, TypeAlias
-import cv2 as cv
 
-Frame: TypeAlias = cv.typing.MatLike
-"""
-Type alias for a pixel array (Frame data)
-"""
+import cv2
+import numpy
+import scipy
 
-class CaptureFormat:
-    MONO8 = "Mono8"
-    BAYER_RG8 = "BayerRG8"
-    RGB8 = "RGB8"
-
-@dataclass
-class Image:
-    frame_id: int
-    timestamp: int
-    exposure_time: float
-    capture_format: CaptureFormat
-    frame: Frame
+import time
+import threading
+import keyboard
 
 class Timer:
     """
@@ -102,4 +91,86 @@ class Timer:
                 self._epoch_callback(self._fps, self._avg_frame_time)
             self._epoch_start_time = curr_time
             self._frame_count = 1
+
+Frame: TypeAlias = cv2.typing.MatLike
+"""
+Type alias for a pixel array (Frame data)
+"""
+
+def keyboard_signal(key: str) -> threading.Event:
+    """
+    Helper function to define a break condition on specific keyboard input to stop the acquisition loop..
+        
+    :param key: Keyboard input to set the break condition
+    :type key: str
+    :return: Thread signal that is set whenever specified keyboard input is detected.
+    :rtype: threading.Event
+    """
+    signal = threading.Event()
+    keyboard.add_hotkey(key, lambda: signal.set())
+    return signal
+
+class CaptureFormat:
+    MONO8 = "Mono8"
+    BAYER_RG8 = "BayerRG8"
+    RGB8 = "RGB8"
+
+@dataclass
+class FrameData:
+    frame_id: int
+    timestamp: int
+    exposure_time: float
+    capture_format: CaptureFormat
+
+def convert_bayer_mono(frame: Frame) -> Frame:
+    return cv2.cvtColor(frame, cv2.COLOR_BayerBG2GRAY)
     
+def convert_bayer_rgb(frame: Frame) -> Frame:
+    return cv2.cvtColor(frame, cv2.COLOR_BayerBG2RGB)
+
+def convert_rgb_mono(frame: Frame) -> Frame:
+    return cv2.cvtColor(frame, cv2.COLOR_RGB2GRAY)
+
+def expand_mono_rgb(frame: Frame) -> Frame:
+    return cv2.cvtColor(frame, cv2.COLOR_GRAY2RGB)
+
+def project(frame: Frame) -> tuple[numpy.array[int], numpy.array[int]]:
+    hori_proj = numpy.sum(frame, 0)
+    vert_proj = numpy.sum(frame, 1)
+    return hori_proj, vert_proj
+
+@dataclass
+class Gaussian:
+    amplitude: float
+    center: float
+    sigma: float
+    offset: float
+    perr: float
+
+def gauss_fit(distribution: numpy.array[int]) -> Gaussian:
+    amp_guess = numpy.max(distribution)
+    offset_guess = numpy.min(distribution)
+    center_guess = distribution.index(amp_guess)
+
+    indecies = numpy.arange(len(distribution))
+    mean = numpy.average(indecies, weights=distribution)
+    sigma_guess = numpy.sqrt(numpy.average((indecies - mean)**2, weights=distribution))
+
+    def gauss(x: float, amplitude: float, center: float, sigma: float, offset: float) -> float:
+        return amplitude * numpy.exp(-1 * ((x - center)**2 / 2 * sigma**2) + offset)
+
+    params, cov_matrix = scipy.optimize.curve_fit(
+        gauss, 
+        xdata=indecies, 
+        ydata=distribution, 
+        p0=(
+            amp_guess,
+            center_guess,
+            sigma_guess,
+            offset_guess
+        )
+    )
+
+    amplitude, center, sigma, offset= params
+    perr = numpy.sqrt(numpy.diag(cov_matrix))
+    return Gaussian(amplitude, center, sigma, offset, perr)

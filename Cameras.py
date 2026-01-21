@@ -1,7 +1,7 @@
 from __future__ import annotations
 import PySpin
 from dataclasses import dataclass
-from Utils import Image
+from Utils import FrameData, Frame
 
 @dataclass
 class CameraDescriptor:
@@ -120,7 +120,7 @@ class Camera:
             print(f"Cannot begin image acquisition: {ex}")
             raise
 
-    def acquire(self) -> Image:
+    def acquire(self) -> tuple[FrameData, Frame]:
         """
         Acquires an image from the pysical camera device and returns it as frame data (2D Array) in BayerBG format.
         In the case of an Exception, try to handle it gracefully and continue acquiring, because a lost frame does not close the acquisition.
@@ -138,10 +138,10 @@ class Camera:
             timestamp = chunk_data.GetTimestamp()
             exposure_time = chunk_data.GetExposureTime()
             capture_format = image.GetPixelFormatName()
-            capture = image.GetNDArray().copy()
+            frame = image.GetNDArray().copy()
             
             image.Release()
-            return Image(frame_id, timestamp, exposure_time, capture_format, capture)
+            return FrameData(frame_id, timestamp, exposure_time, capture_format), frame
         except Exception as ex:
             print(f"Acqisistion Error: {ex}")
             raise

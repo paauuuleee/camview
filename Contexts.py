@@ -8,14 +8,14 @@ class Context:
     The Context class gives access to connected cameras.
     """
     
-    def __init__(self, system: PySpin.SystemPtr, stream_mode: StreamMode):
+    def __init__(self, system: PySpin.SystemPtr, stream_mode: StreamMode, cameras: PySpin.CameraList):
         """
         **DO NOT USE!** Constructor for Context class is only for internal usage. 
         Use Context.create() instead!
         """
         self._system = system
         self._stream_mode = stream_mode
-        self._cameras: list[Camera] = []
+        self._cameras = cameras
 
     @classmethod
     def create(cls) -> Context:
@@ -32,30 +32,21 @@ class Context:
         if os == "Linux" or os == "Darwin":
             stream_mode = StreamMode.SOCKET
         
-        return cls(system, stream_mode)
+        return cls(system, stream_mode, system.GetCameras())
+    
+    def search_cams(self) -> None:
+        self._cameras = self._system.GetCameras()
+    
+    def get_camera(self, id: int) -> Camera:
+        if self._cameras.GetSize() == 0:
+            raise Exception("No cameras connected!")
+        
+        cam = self._cameras.RemoveByIndex(0)
+        return Camera.init(cam, self._stream_mode)
     
     def release(self) -> None:
         """
         Nessessary for cleanup. Releases the objects the Context class holds a pointer to.
         """
-        for cam in self._cameras: cam.deinit() 
-        self._cam_list.Clear()
+        self._cameras.Clear()
         self._system.ReleaseInstance()
-
-    def get_cameras(self) -> list[Camera]:
-        """
-        Gain access to the connected cameras through return list of Camera objects.
-        
-        :return: Camera object for all connected cameras.
-        :rtype: list[Camera]
-        :raises RuntimeError: If no cameras are connected. 
-        Context object is already properly released and does not requiere additional cleanup.
-        """
-        self._cam_list: PySpin.CameraList = self._system.GetCameras()
-
-        if self._cam_list.GetSize() == 0:
-            self.release()
-            raise RuntimeError("No cameras connected.")
-
-        self._cameras = [Camera.init(cam, self._stream_mode) for cam in self._cam_list] 
-        return self._cameras

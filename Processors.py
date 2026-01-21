@@ -1,7 +1,7 @@
 from __future__ import annotations
-from Utils import Frame, Image, CaptureFormat
+from Utils import Frame
 from typing import TypeAlias, Callable
-import cv2 as cv
+import cv2
 
 '''
 class PixelFormat:
@@ -37,10 +37,10 @@ class ProcessFilter:
         :return: Returns the FrameFilter function object.
         :rtype: FrameFilter
         """
-        return lambda frame: cv.medianBlur(frame, ksize)
+        return lambda frame: cv2.medianBlur(frame, ksize)
     
     def SUBSTRACT(sub: Frame) -> FrameFilter:
-        return lambda frame: cv.subtract(frame, sub)
+        return lambda frame: cv2.subtract(frame, sub)
     
     def CROP(width: int, height: int, offset_x: int, offset_y: int) -> FrameFilter:
         return lambda frame: frame[offset_y:offset_y + height, offset_x:offset_x + width]
@@ -70,31 +70,6 @@ class Processor:
         :rtype: Processor
         """
         return cls(filters)
-    
-    '''
-    def setup(self, pixel_format: PixelFormat) -> None:
-        """
-        Setup the desired pixel format that the resulting frame should be converted to.
-        
-        :param pixel_format: Final pixel format of the processed frame.
-        :type pixel_format: PixelFormat
-        """
-        self._conversion_code = self._get_conversion_code(pixel_format)
-    
-    @staticmethod
-    def _get_conversion_code(pixel_format: PixelFormat) -> int:
-        """
-        Determines the conversion code for OpenCV library to convert the BayerBG8 frame data to desired pixel format. Only for internal usage.
-        """
-        match pixel_format:
-            case PixelFormat.RGB: return cv.COLOR_BayerBG2RGB
-            case PixelFormat.BGR: return cv.COLOR_BayerBG2BGR
-    '''
-    @staticmethod
-    def convert_color(raw_image: Image) -> Frame:
-        if raw_image.capture_format == CaptureFormat.MONO8:
-            return raw_image.frame.copy()
-        return cv.cvtColor(raw_image.frame, cv.COLOR_BayerBG2GRAY)
     
     def process(self, frame: Frame) -> Frame:
         for filter in self._filters:
