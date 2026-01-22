@@ -11,8 +11,10 @@ def main() -> int:
     screen = app_init()
     context = Context.create()
 
+    print(f"{context._connected}")
+
     try:
-        camera = context.get_camera(1)
+        camera = context.get_camera("I0T2")
     except Exception as ex:
         print(f"CamView Error: {ex}")
         return 1
@@ -22,10 +24,11 @@ def main() -> int:
         ProcessFilter.THRESHOLD(10)
     )
 
-    timer = Timer.create(1000, timer_callback)
+    timer = Timer.create(800, timer_callback)
     
     dispatch(screen, camera, processor, timer)
     
+    camera.deinit()
     context.release()
     app_quit()
     return 0

@@ -1,5 +1,8 @@
 from __future__ import annotations
 
+# from Processors import Processor, ProcessFilter
+from matplotlib import pyplot as plt
+
 from dataclasses import dataclass
 from typing import Callable, TypeAlias
 
@@ -123,10 +126,10 @@ class FrameData:
     capture_format: CaptureFormat
 
 def convert_bayer_mono(frame: Frame) -> Frame:
-    return cv2.cvtColor(frame, cv2.COLOR_BayerBG2GRAY)
+    return cv2.cvtColor(frame, cv2.COLOR_BayerRG2GRAY)
     
 def convert_bayer_rgb(frame: Frame) -> Frame:
-    return cv2.cvtColor(frame, cv2.COLOR_BayerBG2RGB)
+    return cv2.cvtColor(frame, cv2.COLOR_BayerRG2RGB)
 
 def convert_rgb_mono(frame: Frame) -> Frame:
     return cv2.cvtColor(frame, cv2.COLOR_RGB2GRAY)
@@ -135,9 +138,9 @@ def expand_mono_rgb(frame: Frame) -> Frame:
     return cv2.cvtColor(frame, cv2.COLOR_GRAY2RGB)
 
 def project(frame: Frame) -> tuple[numpy.array[int], numpy.array[int]]:
-    hori_proj = numpy.sum(frame, 0)
-    vert_proj = numpy.sum(frame, 1)
-    return hori_proj, vert_proj
+    hori_dist = numpy.sum(frame, 1)[::-1]
+    vert_dist = numpy.sum(frame, 0)
+    return hori_dist, vert_dist
 
 @dataclass
 class Gaussian:
@@ -150,14 +153,14 @@ class Gaussian:
 def gauss_fit(distribution: numpy.array[int]) -> Gaussian:
     amp_guess = numpy.max(distribution)
     offset_guess = numpy.min(distribution)
-    center_guess = distribution.index(amp_guess)
+    center_guess = distribution.tolist().index(amp_guess)
 
     indecies = numpy.arange(len(distribution))
     mean = numpy.average(indecies, weights=distribution)
     sigma_guess = numpy.sqrt(numpy.average((indecies - mean)**2, weights=distribution))
 
     def gauss(x: float, amplitude: float, center: float, sigma: float, offset: float) -> float:
-        return amplitude * numpy.exp(-1 * ((x - center)**2 / 2 * sigma**2) + offset)
+        return amplitude * numpy.exp(-0.5 * ((x - center)**2 / sigma**2))+ offset
 
     params, cov_matrix = scipy.optimize.curve_fit(
         gauss, 
@@ -174,3 +177,41 @@ def gauss_fit(distribution: numpy.array[int]) -> Gaussian:
     amplitude, center, sigma, offset= params
     perr = numpy.sqrt(numpy.diag(cov_matrix))
     return Gaussian(amplitude, center, sigma, offset, perr)
+
+'''
+def gauss_test() -> int:
+    background = cv2.imread('I0T3.png')
+    background_mono = cv2.cvtColor(background, cv2.COLOR_BGR2GRAY)
+
+    processor = Processor.create(ProcessFilter.SUBSTRACT(background_mono), ProcessFilter.MEDIAN(3), ProcessFilter.THRESHOLD(30))
+    
+    frame = cv2.imread('I0T3-08082025152658-0.png')
+    mono_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+    processed_frame = processor.process(mono_frame)
+
+    horiz_dist, vert_dist = project(processed_frame)
+    horiz_gaussian = gauss_fit(horiz_dist)
+    vert_gaussian = gauss_fit(vert_dist)
+
+    def gauss(x: float, amplitude: float, center: float, sigma: float, offset: float) -> float:
+        return amplitude * numpy.exp(-0.5 * ((x - center)**2 / sigma**2))+ offset
+
+    horiz_x = numpy.linspace(0, len(horiz_dist))
+    horiz_y = gauss(horiz_x, horiz_gaussian.amplitude, horiz_gaussian.center, horiz_gaussian.sigma, horiz_gaussian.offset)
+
+    vert_x = numpy.linspace(0, len(vert_dist))
+    vert_y = gauss(vert_x, vert_gaussian.amplitude, vert_gaussian.center, vert_gaussian.sigma, vert_gaussian.offset)
+
+    _, (horiz, vert) = plt.subplots(1, 2, figsize=(10, 4))
+
+    horiz.plot(horiz_dist)
+    horiz.plot(horiz_x, horiz_y)
+    horiz.set_title('Horizontal distribution')
+
+    vert.plot(vert_dist)
+    vert.plot(vert_x, vert_y)
+    vert.set_title('Vertical distribution')
+
+    plt.legend()
+    plt.show()
+'''

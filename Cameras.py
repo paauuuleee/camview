@@ -93,9 +93,16 @@ class Camera:
             self._cam.ExposureAuto.SetValue(PySpin.ExposureAuto_Off)
             self._cam.GainAuto.SetValue(PySpin.GainAuto_Off)
             self._cam.GammaEnable.SetValue(True)
+            if self._cam.BalanceWhiteAuto.GetAccessMode() == PySpin.RW:
+                self._cam.BalanceWhiteAuto.SetValue(PySpin.BalanceWhiteAuto_Off)
 
+            self._cam.Width.SetValue(200)
+            self._cam.Height.SetValue(150)
+
+            self._cam.AdcBitDepth.SetValue(PySpin.AdcBitDepth_Bit8)
             self._cam.ExposureTime.SetValue(800)
             max_fps = self._cam.AcquisitionFrameRate.GetMax()
+            print(f"Max fps: {max_fps}")
             self._cam.AcquisitionFrameRate.SetValue(max_fps)
 
             self._cam.ChunkModeActive.SetValue(True)

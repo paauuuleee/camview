@@ -31,7 +31,7 @@ def capture_next_frame(cam: Camera, processor: Processor) -> tuple[FrameData, Fr
 def app_init() -> pygame.Surface:
     pygame.init()
     pygame.display.set_caption(f"CamView")
-    return pygame.display.set_mode((0, 0), pygame.FULLSCREEN)
+    return pygame.display.set_mode((1000, 800))
 
 def app_quit() -> None:
     pygame.quit()
@@ -42,6 +42,7 @@ def dispatch(screen: pygame.Surface, cam: Camera, processor: Processor, timer: T
     try:
         cam.setup()
         cam.begin()
+
         while not break_cond.is_set():
             try:
                 frame_data, rgb_frame, mono_frame, processed_frame = capture_next_frame(cam, processor)
@@ -49,10 +50,14 @@ def dispatch(screen: pygame.Surface, cam: Camera, processor: Processor, timer: T
                 print(f"Error: {ex}")
                 continue
 
-            horiz_proj, vert_proj = utils.project(processed_frame)
-            horiz_gaussian = utils.gauss_fit(horiz_proj)
-            vert_gaussian = utils.gauss_fit(vert_proj)
-
+            try:
+                horiz_proj, vert_proj = utils.project(processed_frame)
+                # horiz_gaussian = utils.gauss_fit(horiz_proj)
+                # vert_gaussian = utils.gauss_fit(vert_proj)
+            except Exception as ex:
+                print(f"Gauss fit error: {ex}")
+            
+            
             show_frame = numpy.rot90(rgb_frame)
             show_surface = pygame.surfarray.make_surface(show_frame)
             screen.blit(show_surface, (0, 0))
@@ -64,44 +69,3 @@ def dispatch(screen: pygame.Surface, cam: Camera, processor: Processor, timer: T
         print(f"Error: {ex}")
     finally:
         cam.end()
-
-'''
-class Consumer:
-    def setup(self) -> pygame.Surface:
-        size = (self._cam.descriptor.Width, self._cam.descriptor.Height)
-        pygame.init()
-        pygame.display.set_caption(f"CamView for {self._cam.descriptor.VendorName} {self._cam.descriptor.ModelName}")
-        return pygame.display.set_mode(size)
-        
-    def dispatch(self) -> None:
-        screen = self.setup()
-        show_processed = False
-
-        try:
-            self.setup_and_begin()
-
-            break_cond = utils.keyboard_signal('space')
-            switch = utils.keyboard_signal('s')
-            while not break_cond.is_set():
-                if switch.is_set():
-                    switch.clear()
-                    show_processed = not show_processed
-                try:
-                    raw_image, mono_frame, processed_frame = self.next_frame()
-                    gauss_fit(processed_frame)
-                    
-                    show_frame = processed_frame if show_processed else mono_frame
-                    show_frame = cv.cvtColor(show_frame, cv.COLOR_GRAY2RGB)
-                    show_frame = numpy.rot90(show_frame)
-                    surface = pygame.surfarray.make_surface(show_frame)
-                    screen.blit(surface, (0, 0))
-                    pygame.display.flip()
-                except Exception as ex:
-                    print(f"Error: {ex}")
-                    continue
-        except Exception as ex:
-            print(f"Error: {ex}")
-        finally:
-            self.end_and_cleanup()
-            pygame.quit()
-'''
