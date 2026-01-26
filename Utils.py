@@ -1,4 +1,5 @@
 from __future__ import annotations
+from contextlib import contextmanager
 
 # from Processors import Processor, ProcessFilter
 from matplotlib import pyplot as plt
@@ -95,6 +96,23 @@ class Timer:
             self._epoch_start_time = curr_time
             self._frame_count = 1
 
+@contextmanager
+def except_continue(err_label: str | None = None):
+    try:
+        yield
+    except Exception as ex:
+        if not err_label == None:
+            print(f"{err_label}: {ex}")
+
+@contextmanager
+def except_raise(err_label: str | None = None):
+    try:
+        yield
+    except Exception as ex:
+        if not err_label == None:
+            print(f"{err_label}: {ex}")
+        raise
+
 Frame: TypeAlias = cv2.typing.MatLike
 """
 Type alias for a pixel array (Frame data)
@@ -123,6 +141,12 @@ class CaptureFormat:
     MONO8 = "Mono8"
     BAYER_RG8 = "BayerRG8"
     RGB8 = "RGB8"
+
+class DisplayMode:
+    NONE = 0
+    RGB = 1
+    MONO = 2
+    PROCESSED = 3
 
 @dataclass
 class FrameData:

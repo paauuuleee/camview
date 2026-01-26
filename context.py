@@ -9,14 +9,14 @@ class Context:
     The Context class gives access to connected cameras.
     """
     
-    def __init__(self, system: PySpin.SystemPtr, stream_mode: StreamMode, cameras: PySpin.CameraList):
+    def __init__(self, system: PySpin.SystemPtr, stream_mode: StreamMode):
         """
         **DO NOT USE!** Constructor for Context class is only for internal usage. 
         Use Context.create() instead!
         """
         self._system = system
         self._stream_mode = stream_mode
-        self._cameras: PySpin.CameraList 
+        self._cameras: PySpin.CameraList
         self._cam_map: dict[str, str] 
         self._connected: dict[str, str] 
         self.search_cams(True)
@@ -57,7 +57,7 @@ class Context:
         if not name in self._connected:
             raise Exception("This camera is not connected!")
         
-        cam = self._cameras.GetBySerial(self._cam_mapping[name])
+        cam = self._cameras.GetBySerial(self._cam_map[name])
         return Camera.init(cam, self._stream_mode)
     
     def release(self) -> None:

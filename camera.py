@@ -1,17 +1,20 @@
 from __future__ import annotations
+from typing import Any
 import PySpin
 from dataclasses import dataclass
-from Utils import FrameData, Frame
+from utils import FrameData, Frame, except_continue, except_raise
 
 @dataclass
-class CameraDescriptor:
-    """
-    The CameraDescriptor class can hold basic information about a camera.
-    """
-    VendorName: str
-    ModelName: str
-    Width: int
-    Height: int
+class CameraConfig:
+    width: int
+    height: int
+    offset_x: int
+    offset_y: int
+    frame_rate: int
+    adc_bit_depth: Any
+    exposure_time: int
+    gain: float
+    gamma: float
 
 class StreamMode:
     """
@@ -32,13 +35,13 @@ class StreamMode:
     """
 
 class Camera:
-    def __init__(self, cam: PySpin.CameraPtr, desc: CameraDescriptor):
+    def __init__(self, cam: PySpin.CameraPtr):
         """
         **DO NOT USE!** Constructor for Camera class is only for internal usage. 
         Use Camera.init(...) instead!
         """
         self._cam = cam
-        self._desc = desc
+        self._config: CameraConfig
     
     @classmethod
     def init(cls, cam: PySpin.CameraPtr, stream_mode: StreamMode) -> Camera:
@@ -62,32 +65,23 @@ class Camera:
             case StreamMode.SOCKET:
                 cam.TLStream.StreamMode.SetValue(PySpin.StreamMode_Socket)
 
-        desc = CameraDescriptor(
-            cam.DeviceVendorName.GetValue(), 
-            cam.DeviceModelName.GetValue(), 
-            cam.Width.GetValue(), 
-            cam.Height.GetValue()
-        )
+        return cls(cam)
 
-        return cls(cam, desc)
-
-    @property
-    def descriptor(self) -> CameraDescriptor:
-        """
-        Descriptor property holds general specification data about the pysical camera.
-        """
-        return self._desc
-    
-    def setup(self, config = None) -> None:
+    def setup(self) -> None:
         """
         Sets up the pysical camera with additional device configuartion such as the image acquisition mode. **WORK IN PROGRESS!**
         
         :param config: Config object (still unspecified).
         :raises PySpin.SpinnakerException: May fail to setup camera correctly.
         """
-        try:
+        with except_raise("Error during camera setup"):
             self._cam.TLStream.StreamBufferHandlingMode.SetValue(PySpin.StreamBufferHandlingMode_NewestOnly)
             self._cam.AcquisitionMode.SetValue(PySpin.AcquisitionMode_Continuous)
+
+            self._cam.ChunkModeActive.SetValue(True)
+            self._cam.ChunkSelector.SetValue(PySpin.ChunkSelector_FrameID)
+            self._cam.ChunkSelector.SetValue(PySpin.ChunkSelector_Timestamp)
+            self._cam.ChunkSelector.SetValue(PySpin.ChunkSelector_ExposureTime)
 
             self._cam.AcquisitionFrameRateEnable.SetValue(True)
             self._cam.ExposureAuto.SetValue(PySpin.ExposureAuto_Off)
@@ -96,36 +90,69 @@ class Camera:
             if self._cam.BalanceWhiteAuto.GetAccessMode() == PySpin.RW:
                 self._cam.BalanceWhiteAuto.SetValue(PySpin.BalanceWhiteAuto_Off)
 
-            self._cam.Width.SetValue(200)
-            self._cam.Height.SetValue(150)
-
-            self._cam.AdcBitDepth.SetValue(PySpin.AdcBitDepth_Bit8)
-            self._cam.ExposureTime.SetValue(800)
-            max_fps = self._cam.AcquisitionFrameRate.GetMax()
-            print(f"Max fps: {max_fps}")
-            self._cam.AcquisitionFrameRate.SetValue(max_fps)
-
-            self._cam.ChunkModeActive.SetValue(True)
-            self._cam.ChunkSelector.SetValue(PySpin.ChunkSelector_FrameID)
-            self._cam.ChunkSelector.SetValue(PySpin.ChunkSelector_Timestamp)
-            self._cam.ChunkSelector.SetValue(PySpin.ChunkSelector_ExposureTime)
+        self.update_config()
         
-        except PySpin.SpinnakerException as ex:
-            print(f"Error during camera setup: {ex}")
-            raise
-    
+    def update_config(self) -> None:
+        self._config = CameraConfig(
+            width = self._cam.Width.GetValue(),
+            height = self._cam.Height.GetValue(),
+            offset_x = self._cam.OffsetX.GetValue(),
+            offset_y = self._cam.OffsetY.GetValue(),
+            frame_rate = self._cam.AcquisitionFrameRate.GetValue(),
+            adc_bit_depth = self._cam.AdcBitDepth.GetValue(),
+            exposure_time = self._cam.ExposureTime.GetValue(),
+            gain = self._cam.Gain.GetValue(),
+            gamma = self._cam.Gamma.GetValue()
+        )
+
+    @property
+    def config(self) -> CameraConfig:
+        return self._config
+
+    @config.setter
+    def config(self, config: CameraConfig) -> None:
+        if not self._cam.IsStreaming():
+            with except_continue():
+                self._cam.Width.SetValue(config.width)
+            
+            with except_continue():
+                self._cam.Height.SetValue(config.height)
+            
+            with except_continue():
+                self._cam.AdcBitDepth.SetValue(PySpin.AdcBitDepth_Bit8)
+
+        with except_continue():
+            self._cam.OffsetX.SetValue(config.offset_x)
+
+        with except_continue():
+            self._cam.OffsetY.SetValue(config.offset_y)
+
+        with except_continue():
+            self._cam.ExposureTime.SetValue(config.exposure_time)
+
+        with except_continue():
+            self._cam.Gain.SetValue(config.gain)
+
+        with except_continue():
+            self._cam.Gamma.SetValue(config.gamma)
+        
+        frame_rate = self._cam.AcquisitionFrameRate.GetMax()
+        if config.frame_rate < frame_rate: 
+            frame_rate = config.frame_rate
+        with except_continue():
+            self._cam.AcquisitionFrameRate.SetValue(frame_rate)
+
+        self.update_config()
+            
     def begin(self) -> None:
         """
         Begins the image acquisition for the pysical camera device. Nessessary before acquiring any images.
         
         :raises PySpin.SpinnakerException: May fail to start the image acquisition.
         """
-        try:
+        with except_raise("Cannot begin image acquisition"):
             self._cam.TimestampReset.Execute()
             self._cam.BeginAcquisition()
-        except PySpin.SpinnakerException as ex:
-            print(f"Cannot begin image acquisition: {ex}")
-            raise
 
     def acquire(self) -> tuple[FrameData, Frame]:
         """
@@ -135,7 +162,7 @@ class Camera:
         :raises PySpin.SpinnakerException: May fail to acquire an image.
         :raises ValueError: Image data might be corrupted.
         """
-        try:
+        with except_raise("Acquisition error"):
             image = self._cam.GetNextImage()
             if image.IsIncomplete():
                 raise ValueError("Image is incomplete.")
@@ -149,9 +176,6 @@ class Camera:
             
             image.Release()
             return FrameData(frame_id, timestamp, exposure_time, capture_format), frame
-        except Exception as ex:
-            print(f"Acqisistion Error: {ex}")
-            raise
 
     def end(self) -> None:
         """
@@ -159,11 +183,8 @@ class Camera:
         
         :raises PySpin.SpinnakerException: May fail to stop the camera. After that the shutdown is fatal.
         """
-        try:
+        with except_raise("Error while ending acquisition"):
             self._cam.EndAcquisition()
-        except PySpin.SpinnakerException as ex:
-            print(f"Error while ending acquisition: {ex}")
-            raise
 
     def deinit(self):
         """

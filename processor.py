@@ -1,5 +1,5 @@
 from __future__ import annotations
-from Utils import Frame
+from utils import Frame
 from typing import TypeAlias, Callable
 import cv2
 
