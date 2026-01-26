@@ -1,7 +1,7 @@
 from __future__ import annotations
 import PySpin
 import platform
-from Cameras import Camera, StreamMode
+from camera import Camera, StreamMode
 import json
 
 class Context:
@@ -9,16 +9,16 @@ class Context:
     The Context class gives access to connected cameras.
     """
     
-    def __init__(self, system: PySpin.SystemPtr, stream_mode: StreamMode, cameras: PySpin.CameraList, cam_mapping: dict[str, str] | None = None):
+    def __init__(self, system: PySpin.SystemPtr, stream_mode: StreamMode, cameras: PySpin.CameraList):
         """
         **DO NOT USE!** Constructor for Context class is only for internal usage. 
         Use Context.create() instead!
         """
         self._system = system
         self._stream_mode = stream_mode
-        self._cameras = cameras
-        self._cam_mapping = cam_mapping
-        self._connected: dict[str, str] = {}
+        self._cameras: PySpin.CameraList 
+        self._cam_map: dict[str, str] 
+        self._connected: dict[str, str] 
         self.search_cams(True)
 
     @classmethod
@@ -35,33 +35,28 @@ class Context:
         os = platform.system()
         if os == "Linux" or os == "Darwin":
             stream_mode = StreamMode.SOCKET
-
-        with open("cams.json", "r") as file:
-            cam_mapping = json.load(file)
-
-
-        cam_list = system.GetCameras()
         
-        return cls(system, stream_mode, cam_list, cam_mapping)
+        return cls(system, stream_mode)
     
-    def search_cams(self, read_config: bool) -> None:
+    def search_cams(self, read_config: bool) -> list[str]:
         if read_config:
-            with open("cams.json", "r") as file:
-                self._cam_mapping = json.load(file)
-        self._cameras: PySpin.CameraList = self._system.GetCameras()
+            with open("./config/camera_map.json", "r") as file:
+                self._cam_map = json.load(file)
+
+        self._cameras = self._system.GetCameras()
         
-        for cam_key, cam_serial in self._cam_mapping.items():
-            try:
-                cam = self._cameras.GetBySerial(cam_serial)
-                if cam.IsValid():
-                    self._connected[cam_key] = cam_serial
-            except:
-                continue
-            
+        self._connected = {
+            cam_key: cam_serial 
+            for cam_key, cam_serial in self._cam_map.items() 
+            if self._cameras.GetBySerial(cam_serial).IsValid()
+        }
+
+        return self._connected.keys()
     
     def get_camera(self, name: str) -> Camera:
         if not name in self._connected:
             raise Exception("This camera is not connected!")
+        
         cam = self._cameras.GetBySerial(self._cam_mapping[name])
         return Camera.init(cam, self._stream_mode)
     

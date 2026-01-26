@@ -100,6 +100,12 @@ Frame: TypeAlias = cv2.typing.MatLike
 Type alias for a pixel array (Frame data)
 """
 
+@dataclass
+class Capture:
+    rgb: Frame
+    mono: Frame
+    processed: Frame
+
 def keyboard_signal(key: str) -> threading.Event:
     """
     Helper function to define a break condition on specific keyboard input to stop the acquisition loop..
@@ -138,8 +144,8 @@ def expand_mono_rgb(frame: Frame) -> Frame:
     return cv2.cvtColor(frame, cv2.COLOR_GRAY2RGB)
 
 def project(frame: Frame) -> tuple[numpy.array[int], numpy.array[int]]:
-    hori_dist = numpy.sum(frame, 1)[::-1]
-    vert_dist = numpy.sum(frame, 0)
+    hori_dist = numpy.sum(frame, 0)
+    vert_dist = numpy.sum(frame, 1)
     return hori_dist, vert_dist
 
 @dataclass

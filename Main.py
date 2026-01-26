@@ -1,8 +1,8 @@
 import sys
-from Contexts import Context
-from Processors import Processor, ProcessFilter
-from Dispatch import dispatch, app_init, app_quit
-from Utils import Timer
+from context import Context
+from processor import Processor, ProcessFilter
+from app import dispatch, app_init, app_quit
+from utils import Timer
 
 def timer_callback(fps: float, _: float) -> None:
     print(f"Frame rate: {fps:.1f} FPS")
@@ -10,8 +10,9 @@ def timer_callback(fps: float, _: float) -> None:
 def main() -> int:
     screen = app_init()
     context = Context.create()
+    connected = context.search_cams(True)
 
-    print(f"{context._connected}")
+    print(f"{connected}")
 
     try:
         camera = context.get_camera("I0T2")
