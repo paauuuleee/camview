@@ -8,6 +8,7 @@ import utils
 from utils import Timer, Frame, FrameData, CaptureFormat, Capture, DisplayMode, except_continue
 from ioc import Channel
 
+from multiprocessing import Process
 import pygame
 import numpy
 
@@ -29,34 +30,34 @@ class App:
     def quit(self) -> None:
         self._context.release()
 
-def capture_next_frame(cam: Camera, processor: Processor) -> tuple[FrameData, Capture]:
-    frame_data, frame = cam.acquire()
+def create_dispatch(cam_name: str, display: int = 0) -> tuple[Process, Channel]:
+    channel = Channel.create()
+    timer = Timer.create(100, lambda fps, _: print(f"Frame rate: {fps:.1f} FPS"))
+    process = Process(target=dispatch, args=(cam_name, channel, display, timer))
+    return process
 
-    rgb_frame: Frame
-    mono_frame: Frame
-    match frame_data.capture_format:
-        case CaptureFormat.BAYER_RG8:
-            rgb_frame = utils.convert_bayer_rgb(frame)
-            mono_frame = utils.convert_bayer_mono(frame)
-        case CaptureFormat.MONO8:
-            rgb_frame = utils.expand_mono_rgb(frame)
-            mono_frame = frame
-        case CaptureFormat.RGB8:
-            rgb_frame = frame
-            mono_frame = utils.convert_rgb_mono(frame)
+def dispatch(cam_name: str, channel: Channel, display: int = 0, timer: Timer | None = None) -> None:
+    context = Context.create()
+    
+    try:
+        camera = context.get_camera(cam_name)
+    except Exception as ex:
+        print(f"Cannot find {cam_name}")
+        return
+    
+    screen = dispatch_init(display)
+    dispatch(screen, camera, channel, timer)
+    dispatch_quit()
 
-    processed_frame = processor.process(mono_frame)
-    return frame_data, Capture(rgb_frame, mono_frame, processed_frame)
-
-def window_init(display: int = 0) -> pygame.Surface:
+def dispatch_init(display: int = 0) -> pygame.Surface:
     pygame.init()
     pygame.display.set_caption(f"CamView")
     return pygame.display.set_mode((1000, 800), display=display)
 
-def window_quit() -> None:
+def dispatch_quit() -> None:
     pygame.quit()
 
-def dispatch(screen: pygame.Surface, cam: Camera, channel: Channel, timer: Timer | None = None) -> None:
+def dispatch_run(screen: pygame.Surface, cam: Camera, channel: Channel, timer: Timer | None = None) -> None:
     processor = Processor.create()
     display_mode = DisplayMode.RGB
     with except_continue("Error"):
@@ -111,3 +112,22 @@ def dispatch(screen: pygame.Surface, cam: Camera, channel: Channel, timer: Timer
                 timer.frame()
     
     cam.end()
+
+def capture_next_frame(cam: Camera, processor: Processor) -> tuple[FrameData, Capture]:
+    frame_data, frame = cam.acquire()
+
+    rgb_frame: Frame
+    mono_frame: Frame
+    match frame_data.capture_format:
+        case CaptureFormat.BAYER_RG8:
+            rgb_frame = utils.convert_bayer_rgb(frame)
+            mono_frame = utils.convert_bayer_mono(frame)
+        case CaptureFormat.MONO8:
+            rgb_frame = utils.expand_mono_rgb(frame)
+            mono_frame = frame
+        case CaptureFormat.RGB8:
+            rgb_frame = frame
+            mono_frame = utils.convert_rgb_mono(frame)
+
+    processed_frame = processor.process(mono_frame)
+    return frame_data, Capture(rgb_frame, mono_frame, processed_frame)
