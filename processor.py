@@ -1,7 +1,10 @@
 from __future__ import annotations
-from utils import Frame
 from typing import TypeAlias, Callable
+
+from utils import Frame
+
 import cv2
+from functools import partial
 
 '''
 class PixelFormat:
@@ -23,6 +26,19 @@ FrameFilter: TypeAlias = Callable[[Frame], Frame]
 Type alias for a filter function that processes the frame data.
 """
 
+def median(frame: Frame, ksize: int) -> Frame:
+    return cv2.medianBlur(frame, ksize)
+
+def subtract(frame: Frame, sub: Frame) -> Frame:
+    return cv2.subtract(frame, sub)
+
+def threshold(frame: Frame, value: int) -> Frame:
+    frame[frame < value] = 0
+    return frame
+
+def crop(frame: Frame, width: int, height: int, offset_x: int, offset_y: int) -> Frame:
+    return frame[offset_y:offset_y + height, offset_x:offset_x + width]
+
 class ProcessFilter:
     """
     Enumeration over already available filter functions.
@@ -37,19 +53,18 @@ class ProcessFilter:
         :return: Returns the FrameFilter function object.
         :rtype: FrameFilter
         """
-        return lambda frame: cv2.medianBlur(frame, ksize)
+        return partial(median, ksize=ksize)
     
     def SUBSTRACT(sub: Frame) -> FrameFilter:
-        return lambda frame: cv2.subtract(frame, sub)
+        return partial(subtract, sub=sub)
     
     def CROP(width: int, height: int, offset_x: int, offset_y: int) -> FrameFilter:
-        return lambda frame: frame[offset_y:offset_y + height, offset_x:offset_x + width]
+        return partial(crop, width=width, height=height, offset_x=offset_x, offset_y=offset_y)
     
     def THRESHOLD(value: int) -> FrameFilter:
-        def threshold(frame: Frame, value: int) -> Frame:
-            frame[frame < value] = 0
-            return frame
-        return lambda frame: threshold(frame, value)
+        return partial(threshold, value=value)
+
+
 
 class Processor:
     def __init__(self, filters: tuple[FrameFilter, ...]):

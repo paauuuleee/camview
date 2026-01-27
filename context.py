@@ -1,7 +1,9 @@
 from __future__ import annotations
+
+from camera import Camera, StreamMode
+
 import PySpin
 import platform
-from camera import Camera, StreamMode
 import json
 
 class Context:
@@ -38,6 +40,9 @@ class Context:
         
         return cls(system, stream_mode)
     
+    def get_connected(self) -> list[str]:
+        return self._connected.keys()
+    
     def search_cams(self, read_config: bool) -> list[str]:
         if read_config:
             with open("./config/camera_map.json", "r") as file:
@@ -50,15 +55,13 @@ class Context:
             for cam_key, cam_serial in self._cam_map.items() 
             if self._cameras.GetBySerial(cam_serial).IsValid()
         }
-
-        return self._connected.keys()
     
     def get_camera(self, name: str) -> Camera:
         if not name in self._connected:
             raise Exception("This camera is not connected!")
         
         cam = self._cameras.GetBySerial(self._cam_map[name])
-        return Camera.init(cam, self._stream_mode)
+        return Camera.init(name, cam, self._stream_mode)
     
     def release(self) -> None:
         """

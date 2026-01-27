@@ -1,24 +1,30 @@
 from __future__ import annotations
 from dataclasses import dataclass
+from contextlib import contextmanager
 
 from processor import Processor
 from utils import DisplayMode
 from camera import CameraConfig, Camera
 
 from multiprocessing import Queue
-from multiprocessing.synchronize import Event
+import multiprocessing as mp
+
+@dataclass
+class ExitMsg:
+    success: bool
+    message: str
 
 @dataclass
 class Channel:
     def __init__(
             self, 
-            sig_term: Event, 
-            sig_calc: Event, 
-            sig_record: Event, 
+            sig_term, 
+            sig_calc, 
+            sig_record, 
             display_mode_queue: Queue, 
             processor_queue: Queue, 
             cam_config_queue: Queue, 
-            sig_request_cam_config: Event, 
+            sig_request_cam_config, 
             cam_config_respond_queue: Queue):
         self._sig_term = sig_term
         self._sig_calc = sig_calc
@@ -28,33 +34,31 @@ class Channel:
         self._cam_config_queue = cam_config_queue
         self._sig_request_cam_config = sig_request_cam_config
         self._cam_config_respond_queue = cam_config_respond_queue
+        self._exit_msg_lock = mp.Lock()
+        self._exit_msg = ExitMsg(True, "")
 
     @classmethod
     def create(cls) -> Channel:
-        sig_term = Event()
-        sig_calc = Event()
-        sig_record = Event()
+        sig_term = mp.Event()
+        sig_calc = mp.Event()
+        sig_record = mp.Event()
         display_mode_queue = Queue(maxsize=1)
         processor_queue = Queue(maxsize=1)
         cam_config_queue = Queue(maxsize=1)
-        sig_request_cam_config = Event()
+        sig_request_cam_config = mp.Event()
         cam_config_respond_queue = Queue(maxsize=1)
         return cls(sig_term, sig_calc, sig_record, display_mode_queue, processor_queue, cam_config_queue, sig_request_cam_config, cam_config_respond_queue)
     
-    @property
-    def processor(self) -> Processor:
+    def recv_processor(self) -> Processor:
         return self._processor_queue.get(block=False)
 
-    @processor.setter
-    def processor(self, processor: Processor) -> None:
+    def send_processor(self, processor: Processor) -> None:
         self._processor_queue.put(processor)
 
-    @property
-    def display_mode(self) -> DisplayMode:
-        return self._display_mode_queue.get(block=True)
+    def recv_display_mode(self) -> DisplayMode:
+        return self._display_mode_queue.get(block=False)
 
-    @display_mode.setter
-    def display_mode(self, display_mode: DisplayMode) -> None:
+    def send_display_mode(self, display_mode: DisplayMode) -> None:
         self._display_mode_queue.put(display_mode)
 
     def terminate(self) -> None:
@@ -92,10 +96,26 @@ class Channel:
         if self._sig_request_cam_config.is_set():
             self._cam_config_respond_queue.put(camera.config)
 
-    @property
-    def camera_config(self) -> CameraConfig:
+    def recv_camera_config(self) -> CameraConfig:
         return self._cam_config_queue.get(block=False)
 
-    @camera_config.setter
-    def camera_config(self, camera_config: CameraConfig) -> None:
+    def send_camera_config(self, camera_config: CameraConfig) -> None:
         return self._cam_config_queue.put(camera_config)
+    
+    @property
+    def exit_msg(self) -> ExitMsg:
+        with self._exit_msg_lock:
+            return self._exit_msg
+    
+    @exit_msg.setter
+    def exit_msg(self, exit_msg: ExitMsg) -> None:
+        with self._exit_msg_lock:
+            self._exit_msg = exit_msg
+
+@contextmanager
+def except_process(err_msg: str, channel: Channel):
+    try:
+        yield
+    except Exception:
+        channel.exit_msg = ExitMsg(False, err_msg)
+        raise

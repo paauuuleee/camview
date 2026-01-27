@@ -1,11 +1,9 @@
 from __future__ import annotations
+from dataclasses import dataclass, asdict
 from contextlib import contextmanager
+from typing import Callable, TypeAlias, Any
 
 # from Processors import Processor, ProcessFilter
-from matplotlib import pyplot as plt
-
-from dataclasses import dataclass
-from typing import Callable, TypeAlias
 
 import cv2
 import numpy
@@ -91,7 +89,7 @@ class Timer:
         if self._frame_count == self._epoch_frame_cap:
             self._fps = self._epoch_frame_cap / (curr_time - self._epoch_start_time)
             self._avg_frame_time = (curr_time - self._epoch_start_time) / self._epoch_frame_cap
-            if not self._epoch_callback == None:
+            if self._epoch_callback is not None:
                 self._epoch_callback(self._fps, self._avg_frame_time)
             self._epoch_start_time = curr_time
             self._frame_count = 1
@@ -101,7 +99,7 @@ def except_continue(err_label: str | None = None):
     try:
         yield
     except Exception as ex:
-        if not err_label == None:
+        if err_label is not None:
             print(f"{err_label}: {ex}")
 
 @contextmanager
@@ -109,7 +107,7 @@ def except_raise(err_label: str | None = None):
     try:
         yield
     except Exception as ex:
-        if not err_label == None:
+        if err_label is not None:
             print(f"{err_label}: {ex}")
         raise
 
@@ -178,7 +176,7 @@ class Gaussian:
     center: float
     sigma: float
     offset: float
-    perr: float
+    perr: numpy.array[float]
 
 def gauss_fit(distribution: numpy.array[int]) -> Gaussian:
     amp_guess = numpy.max(distribution)
@@ -207,6 +205,47 @@ def gauss_fit(distribution: numpy.array[int]) -> Gaussian:
     amplitude, center, sigma, offset= params
     perr = numpy.sqrt(numpy.diag(cov_matrix))
     return Gaussian(amplitude, center, sigma, offset, perr)
+
+@dataclass
+class DataRecord:
+    amplitude_horiz: float
+    center_horiz: float
+    sigma_horiz: float
+    offset_horiz: float
+    perr_horiz: tuple[float, float, float, float]
+
+    amplitude_vert: float
+    center_vert: float
+    sigma_vert: float
+    offset_vert: float
+    perr_vert: tuple[float, float, float, float]
+
+    frame_id: int
+    exposure_time: float
+    timestamp: int
+
+    @classmethod
+    def create(cls, horiz_gaussian: Gaussian, vert_gaussian: Gaussian, frame_data: FrameData) -> DataRecord:
+        return cls(
+            amplitude_horiz = horiz_gaussian.amplitude,
+            center_horiz = horiz_gaussian.center,
+            sigma_horiz = horiz_gaussian.sigma,
+            offset_horiz = horiz_gaussian.offset,
+            perr_horiz = tuple(horiz_gaussian.perr),
+            
+            amplitude_vert = vert_gaussian.amplitude,
+            center_vert = vert_gaussian.center,
+            sigma_vert = vert_gaussian.sigma,
+            offset_vert = vert_gaussian.offset,
+            perr_vert = tuple(vert_gaussian.perr),
+
+            frame_id = frame_data.frame_id,
+            exposure_time = frame_data.exposure_time,
+            timestamp = frame_data.timestamp
+        )
+    
+    def asdict(self) -> dict[str, Any]:
+        return asdict(self)
 
 '''
 def gauss_test() -> int:

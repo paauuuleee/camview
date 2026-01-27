@@ -1,20 +1,22 @@
 from __future__ import annotations
-from typing import Any
-import PySpin
 from dataclasses import dataclass
+from typing import Any
+
 from utils import FrameData, Frame, except_continue, except_raise
+
+import PySpin
 
 @dataclass
 class CameraConfig:
-    width: int
-    height: int
-    offset_x: int
-    offset_y: int
-    frame_rate: int
-    adc_bit_depth: Any
-    exposure_time: int
-    gain: float
-    gamma: float
+    width: int | None = None
+    height: int | None = None
+    offset_x: int | None = None
+    offset_y: int | None = None
+    frame_rate: int | None = None
+    adc_bit_depth: Any | None = None
+    exposure_time: int | None = None
+    gain: float | None = None
+    gamma: float | None = None
 
 class StreamMode:
     """
@@ -35,16 +37,17 @@ class StreamMode:
     """
 
 class Camera:
-    def __init__(self, cam: PySpin.CameraPtr):
+    def __init__(self, name: str, cam: PySpin.CameraPtr):
         """
         **DO NOT USE!** Constructor for Camera class is only for internal usage. 
         Use Camera.init(...) instead!
         """
+        self._name = name
         self._cam = cam
         self._config: CameraConfig
     
     @classmethod
-    def init(cls, cam: PySpin.CameraPtr, stream_mode: StreamMode) -> Camera:
+    def init(cls, name: str, cam: PySpin.CameraPtr, stream_mode: StreamMode) -> Camera:
         """
         Creates and correctly initializes a Camera object. Configures the correct stream mode for the passed in camera handle.
         
@@ -65,7 +68,7 @@ class Camera:
             case StreamMode.SOCKET:
                 cam.TLStream.StreamMode.SetValue(PySpin.StreamMode_Socket)
 
-        return cls(cam)
+        return cls(name, cam)
 
     def setup(self) -> None:
         """
@@ -76,6 +79,9 @@ class Camera:
         """
         with except_raise("Error during camera setup"):
             self._cam.TLStream.StreamBufferHandlingMode.SetValue(PySpin.StreamBufferHandlingMode_NewestOnly)
+            self._cam.TLStream.StreamBufferCountMode.SetValue(PySpin.StreamBufferCountMode_Manual)
+            self._cam.TLStream.StreamBufferCountManual.SetValue(3)
+            self._cam.GevSCPSPacketSize.SetValue(9000)
             self._cam.AcquisitionMode.SetValue(PySpin.AcquisitionMode_Continuous)
 
             self._cam.ChunkModeActive.SetValue(True)
@@ -106,41 +112,54 @@ class Camera:
         )
 
     @property
+    def name(self) -> str:
+        return self._name
+
+    @property
     def config(self) -> CameraConfig:
         return self._config
 
     @config.setter
     def config(self, config: CameraConfig) -> None:
         if not self._cam.IsStreaming():
-            with except_continue():
-                self._cam.Width.SetValue(config.width)
+            if config.height is not None:
+                with except_continue():
+                    self._cam.Width.SetValue(config.width)
             
-            with except_continue():
-                self._cam.Height.SetValue(config.height)
+            if config.width is not None:
+                with except_continue():
+                    self._cam.Height.SetValue(config.height)
             
+            if config.adc_bit_depth is not None:
+                with except_continue():
+                    self._cam.AdcBitDepth.SetValue(config.adc_bit_depth)
+
+        if config.offset_x is not None:
             with except_continue():
-                self._cam.AdcBitDepth.SetValue(PySpin.AdcBitDepth_Bit8)
+                self._cam.OffsetX.SetValue(config.offset_x)
 
-        with except_continue():
-            self._cam.OffsetX.SetValue(config.offset_x)
+        if config.offset_y is not None:
+            with except_continue():
+                self._cam.OffsetY.SetValue(config.offset_y)
 
-        with except_continue():
-            self._cam.OffsetY.SetValue(config.offset_y)
+        if config.exposure_time is not None:
+            with except_continue():
+                self._cam.ExposureTime.SetValue(config.exposure_time)
 
-        with except_continue():
-            self._cam.ExposureTime.SetValue(config.exposure_time)
+        if config.gain is not None:
+            with except_continue():
+                self._cam.Gain.SetValue(config.gain)
 
-        with except_continue():
-            self._cam.Gain.SetValue(config.gain)
-
-        with except_continue():
-            self._cam.Gamma.SetValue(config.gamma)
+        if config.gamma is not None:
+            with except_continue():
+                self._cam.Gamma.SetValue(config.gamma)
         
-        frame_rate = self._cam.AcquisitionFrameRate.GetMax()
-        if config.frame_rate < frame_rate: 
-            frame_rate = config.frame_rate
-        with except_continue():
-            self._cam.AcquisitionFrameRate.SetValue(frame_rate)
+        if config.frame_rate is not None:
+            frame_rate = self._cam.AcquisitionFrameRate.GetMax()
+            if config.frame_rate < frame_rate: 
+                frame_rate = config.frame_rate
+            with except_continue():
+                self._cam.AcquisitionFrameRate.SetValue(frame_rate)
 
         self.update_config()
             
