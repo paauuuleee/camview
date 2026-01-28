@@ -86,8 +86,11 @@ class Camera:
 
             self._cam.ChunkModeActive.SetValue(True)
             self._cam.ChunkSelector.SetValue(PySpin.ChunkSelector_FrameID)
+            self._cam.ChunkEnable.SetValue(True)
             self._cam.ChunkSelector.SetValue(PySpin.ChunkSelector_Timestamp)
+            self._cam.ChunkEnable.SetValue(True)
             self._cam.ChunkSelector.SetValue(PySpin.ChunkSelector_ExposureTime)
+            self._cam.ChunkEnable.SetValue(True)
 
             self._cam.AcquisitionFrameRateEnable.SetValue(True)
 
@@ -194,7 +197,7 @@ class Camera:
             exposure_time = chunk_data.GetExposureTime()
             capture_format = image.GetPixelFormatName()
             frame = image.GetNDArray().copy()
-            
+
             image.Release()
             return FrameData(frame_id, timestamp, exposure_time, capture_format), frame
 

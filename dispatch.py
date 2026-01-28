@@ -3,9 +3,9 @@ from __future__ import annotations
 from camera import Camera, CameraConfig
 from processor import Processor
 from context import Context
-from channel import Channel, except_process
+from channel import Channel, ExitMsg, except_process
 import utils
-from utils import Frame, FrameData, CaptureFormat, Capture, DisplayMode, DataRecord, except_continue, except_raise, Timer
+from utils import Frame, FrameData, CaptureFormat, Capture, DisplayMode, DataRecord, except_continue, except_raise, Timer, HardwareTimer
 
 from multiprocessing import Process
 import pygame
@@ -48,6 +48,9 @@ class Dispatch:
     def is_alive(self) -> bool:
         return self._process.is_alive()
     
+    def get_exit_msg(self) -> ExitMsg:
+        return self._channel.exit_msg
+    
     @property
     def cam_name(self) -> str:
         return self._cam_name
@@ -63,13 +66,14 @@ def dispatch(cam_name: str, channel: Channel, display: int, config: CameraConfig
             camera = context.get_camera(cam_name)
         
         with except_process(f"Cannot setup camera", channel):
-            camera.setup()
+            camera.setup(auto_off=True)
 
         if config is not None:
             camera.config = config
         
         with except_process(f"Error during dispatch", channel):
             dispatch_run(screen, camera, channel)
+        
     except:
         pass
     finally:
@@ -80,12 +84,12 @@ def dispatch_run(screen: pygame.Surface, cam: Camera, channel: Channel) -> None:
     writer = None
     processor = Processor.create()
     display_mode = DisplayMode.RGB
-    timer = Timer.create(100, lambda fps, _: print(f"{fps:.1f}"))
+    timer = HardwareTimer.create(1000, lambda fps: print(f"{fps:.1f}"))
     with except_raise():
         cam.begin()
 
-    timer.start()
     while not channel.should_terminate():
+       
         with except_continue():
             processor = channel.recv_processor()
 
@@ -113,7 +117,8 @@ def dispatch_run(screen: pygame.Surface, cam: Camera, channel: Channel) -> None:
 
             if channel.should_record():
                 if file is None:
-                    file = open(f"./record/{cam.name}_{time.localtime()}.csv", "w")
+                    localtime = time.localtime()
+                    file = open(f"./record/{cam.name}-{localtime.tm_year}{localtime.tm_mon:02d}{localtime.tm_mday:02d}-{localtime.tm_hour:02d}{localtime.tm_min:02d}.csv", "w")
                     writer = csv.DictWriter(file, fieldnames=record_dict.keys())
                     writer.writeheader()
                 writer.writerow(record_dict)
@@ -134,7 +139,7 @@ def dispatch_run(screen: pygame.Surface, cam: Camera, channel: Channel) -> None:
         screen.blit(show_surface, (0, 0))
         pygame.display.flip()
         
-        timer.frame()
+        timer.frame(frame_data.timestamp)
     
     cam.end()
     if file is not None:

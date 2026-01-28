@@ -20,6 +20,10 @@ class HardwareTimer:
         self._frame_count = -1
         self._epoch_start_time = 0
 
+    @classmethod
+    def create(cls, epoch_count: int, epoch_callback: Callable[[float], None] | None = None) -> HardwareTimer:
+        return cls(epoch_count, epoch_callback)
+
     def frame(self, timestamp: int) -> None:
         if self._frame_count == -1:
             self._epoch_start_time = timestamp
@@ -27,9 +31,9 @@ class HardwareTimer:
             return
         
         self._frame_count += 1
-        if self._frame_count == 100:
+        if self._frame_count == self._epoch_count:
             time_diff = timestamp - self._epoch_start_time
-            frame_rate = (time_diff * 0.01) / 1e9
+            frame_rate = self._epoch_count / (time_diff * 1e-9)
             self._epoch_callback(frame_rate)
             self._epoch_start_time = timestamp
             self._frame_count = 0
@@ -234,16 +238,21 @@ class DataRecord:
     center_horiz: float
     sigma_horiz: float
     offset_horiz: float
-    perr_horiz: tuple[float, float, float, float]
+    err_amplitude_horiz: float
+    err_center_horiz: float
+    err_sigma_horiz: float
+    err_offset_horiz: float
 
     amplitude_vert: float
     center_vert: float
     sigma_vert: float
     offset_vert: float
-    perr_vert: tuple[float, float, float, float]
+    err_amplitude_vert: float
+    err_center_vert: float
+    err_sigma_vert: float
+    err_offset_vert: float
 
     frame_id: int
-    exposure_time: float
     timestamp: int
 
     @classmethod
@@ -253,16 +262,21 @@ class DataRecord:
             center_horiz = horiz_gaussian.center,
             sigma_horiz = horiz_gaussian.sigma,
             offset_horiz = horiz_gaussian.offset,
-            perr_horiz = tuple(horiz_gaussian.perr),
-            
+            err_amplitude_horiz = horiz_gaussian.perr[0],
+            err_center_horiz = horiz_gaussian.perr[1],
+            err_sigma_horiz = horiz_gaussian.perr[2],
+            err_offset_horiz = horiz_gaussian.perr[3],
+
             amplitude_vert = vert_gaussian.amplitude,
             center_vert = vert_gaussian.center,
             sigma_vert = vert_gaussian.sigma,
             offset_vert = vert_gaussian.offset,
-            perr_vert = tuple(vert_gaussian.perr),
+            err_amplitude_vert = vert_gaussian.perr[0],
+            err_center_vert = vert_gaussian.perr[1],
+            err_sigma_vert = vert_gaussian.perr[2],
+            err_offset_vert = vert_gaussian.perr[3],
 
             frame_id = frame_data.frame_id,
-            exposure_time = frame_data.exposure_time,
             timestamp = frame_data.timestamp
         )
     

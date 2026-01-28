@@ -10,11 +10,11 @@ class App:
 
     @classmethod
     def init(cls) -> App:
-        context = Context.create()
+        context = Context.create()()
         connected = context.get_connected()
         return cls(context, connected)
         
-    def search_connected(self, read_config=True) -> None:
+    def search_connected(self, read_config: bool = True) -> None:
         self._context.search_cams(read_config)
         self._connected = self._context.get_connected()
 

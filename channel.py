@@ -16,16 +16,7 @@ class ExitMsg:
 
 @dataclass
 class Channel:
-    def __init__(
-            self, 
-            sig_term, 
-            sig_calc, 
-            sig_record, 
-            display_mode_queue: Queue, 
-            processor_queue: Queue, 
-            cam_config_queue: Queue, 
-            sig_request_cam_config, 
-            cam_config_respond_queue: Queue):
+    def __init__(self, sig_term, sig_calc, sig_record, display_mode_queue: Queue, processor_queue: Queue, cam_config_queue: Queue, sig_request_cam_config, cam_config_respond_queue: Queue):
         self._sig_term = sig_term
         self._sig_calc = sig_calc
         self._sig_record = sig_record
@@ -47,6 +38,7 @@ class Channel:
         cam_config_queue = Queue(maxsize=1)
         sig_request_cam_config = mp.Event()
         cam_config_respond_queue = Queue(maxsize=1)
+
         return cls(sig_term, sig_calc, sig_record, display_mode_queue, processor_queue, cam_config_queue, sig_request_cam_config, cam_config_respond_queue)
     
     def recv_processor(self) -> Processor:
@@ -75,7 +67,7 @@ class Channel:
         self._sig_calc.clear()
 
     def should_calculate(self) -> bool:
-        self._sig_calc.is_set()
+        return self._sig_calc.is_set()
 
     def record(self) -> None:
         if not self._sig_calc.is_set():
@@ -86,7 +78,7 @@ class Channel:
         self._sig_record.clear()
 
     def should_record(self) -> bool:
-        self._sig_record.is_set()
+        return self._sig_record.is_set()
 
     def request_camera_config(self) -> CameraConfig:
         self._sig_request_cam_config.set()

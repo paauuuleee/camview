@@ -13,7 +13,10 @@ def main() -> int:
     dispatch.start()
 
     keyboard.wait('space')
-    dispatch.set_display_mode(DisplayMode.PROCESSED)
+    dispatch._channel.calculate()
+
+    keyboard.wait('space')
+    dispatch._channel.record()
 
     keyboard.wait('space')
     dispatch.terminate()
