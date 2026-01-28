@@ -13,6 +13,28 @@ import time
 import threading
 import keyboard
 
+class HardwareTimer:
+    def __init__(self, epoch_count: int, epoch_callback: Callable[[float], None] | None):
+        self._epoch_callback = epoch_callback
+        self._epoch_count = epoch_count
+        self._frame_count = -1
+        self._epoch_start_time = 0
+
+    def frame(self, timestamp: int) -> None:
+        if self._frame_count == -1:
+            self._epoch_start_time = timestamp
+            self._frame_count = 0
+            return
+        
+        self._frame_count += 1
+        if self._frame_count == 100:
+            time_diff = timestamp - self._epoch_start_time
+            frame_rate = (time_diff * 0.01) / 1e9
+            self._epoch_callback(frame_rate)
+            self._epoch_start_time = timestamp
+            self._frame_count = 0
+
+
 class Timer:
     """
     The Timer class measures the frame time and frame rate of a loop.

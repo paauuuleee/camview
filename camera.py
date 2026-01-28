@@ -70,7 +70,7 @@ class Camera:
 
         return cls(name, cam)
 
-    def setup(self) -> None:
+    def setup(self, auto_off: bool) -> None:
         """
         Sets up the pysical camera with additional device configuartion such as the image acquisition mode. **WORK IN PROGRESS!**
         
@@ -90,11 +90,13 @@ class Camera:
             self._cam.ChunkSelector.SetValue(PySpin.ChunkSelector_ExposureTime)
 
             self._cam.AcquisitionFrameRateEnable.SetValue(True)
-            self._cam.ExposureAuto.SetValue(PySpin.ExposureAuto_Off)
-            self._cam.GainAuto.SetValue(PySpin.GainAuto_Off)
-            self._cam.GammaEnable.SetValue(True)
-            if self._cam.BalanceWhiteAuto.GetAccessMode() == PySpin.RW:
-                self._cam.BalanceWhiteAuto.SetValue(PySpin.BalanceWhiteAuto_Off)
+
+            if auto_off:
+                self._cam.ExposureAuto.SetValue(PySpin.ExposureAuto_Off)
+                self._cam.GainAuto.SetValue(PySpin.GainAuto_Off)
+                self._cam.GammaEnable.SetValue(True)
+                if self._cam.BalanceWhiteAuto.GetAccessMode() == PySpin.RW:
+                    self._cam.BalanceWhiteAuto.SetValue(PySpin.BalanceWhiteAuto_Off)
 
         self.update_config()
         
