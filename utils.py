@@ -234,6 +234,9 @@ def gauss_fit(distribution: numpy.array[int]) -> Gaussian:
 
 @dataclass
 class DataRecord:
+    frame_id: int
+    timestamp: int
+
     amplitude_horiz: float
     center_horiz: float
     sigma_horiz: float
@@ -252,12 +255,12 @@ class DataRecord:
     err_sigma_vert: float
     err_offset_vert: float
 
-    frame_id: int
-    timestamp: int
-
     @classmethod
     def create(cls, horiz_gaussian: Gaussian, vert_gaussian: Gaussian, frame_data: FrameData) -> DataRecord:
         return cls(
+            frame_id = frame_data.frame_id,
+            timestamp = frame_data.timestamp, 
+
             amplitude_horiz = horiz_gaussian.amplitude,
             center_horiz = horiz_gaussian.center,
             sigma_horiz = horiz_gaussian.sigma,
@@ -274,10 +277,7 @@ class DataRecord:
             err_amplitude_vert = vert_gaussian.perr[0],
             err_center_vert = vert_gaussian.perr[1],
             err_sigma_vert = vert_gaussian.perr[2],
-            err_offset_vert = vert_gaussian.perr[3],
-
-            frame_id = frame_data.frame_id,
-            timestamp = frame_data.timestamp
+            err_offset_vert = vert_gaussian.perr[3]
         )
     
     def asdict(self) -> dict[str, Any]:

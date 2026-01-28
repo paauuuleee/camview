@@ -118,7 +118,7 @@ def dispatch_run(screen: pygame.Surface, cam: Camera, channel: Channel) -> None:
             if channel.should_record():
                 if file is None:
                     localtime = time.localtime()
-                    file = open(f"./record/{cam.name}-{localtime.tm_year}{localtime.tm_mon:02d}{localtime.tm_mday:02d}-{localtime.tm_hour:02d}{localtime.tm_min:02d}.csv", "w")
+                    file = open(f"./record/{cam.name}-{localtime.tm_year}{localtime.tm_mon:02d}{localtime.tm_mday:02d}-{localtime.tm_hour:02d}{localtime.tm_min:02d}.csv", "w", newline="")
                     writer = csv.DictWriter(file, fieldnames=record_dict.keys())
                     writer.writeheader()
                 writer.writerow(record_dict)
