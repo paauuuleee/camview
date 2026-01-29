@@ -55,7 +55,8 @@ class ProcessFilter:
         """
         return partial(median, ksize=ksize)
     
-    def SUBSTRACT(sub: Frame) -> FrameFilter:
+    def SUBSTRACT(camera_name: str) -> FrameFilter:
+        sub = cv2.imread(f"./config/{camera_name}.png")
         return partial(subtract, sub=sub)
     
     def CROP(width: int, height: int, offset_x: int, offset_y: int) -> FrameFilter:
@@ -64,10 +65,10 @@ class ProcessFilter:
     def THRESHOLD(value: int) -> FrameFilter:
         return partial(threshold, value=value)
 
-
+Pipeline: TypeAlias = tuple[FrameFilter, ...]
 
 class Processor:
-    def __init__(self, filters: tuple[FrameFilter, ...]):
+    def __init__(self, filters: Pipeline):
         """
         **DO NOT USE!** Constructor for Processor class is only for internal usage.
         Use Processor.create(...) instead
@@ -85,6 +86,9 @@ class Processor:
         :rtype: Processor
         """
         return cls(filters)
+    
+    def updated_pipline(self, filters: Pipeline) -> None:
+        self._filters = filters
     
     def process(self, frame: Frame) -> Frame:
         for filter in self._filters:

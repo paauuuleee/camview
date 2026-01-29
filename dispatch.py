@@ -10,6 +10,7 @@ from utils import Frame, FrameData, CaptureFormat, Capture, DisplayMode, DataRec
 from multiprocessing import Process
 import pygame
 import numpy
+import cv2
 import time
 import csv
 
@@ -79,33 +80,28 @@ def dispatch(cam_name: str, channel: Channel, display: int, config: CameraConfig
     finally:
         pygame.quit()
 
-def dispatch_run(screen: pygame.Surface, cam: Camera, channel: Channel) -> None:
+def dispatch_run(screen: pygame.Surface, camera: Camera, channel: Channel) -> None:
     file = None
     writer = None
+    
     processor = Processor.create()
     display_mode = DisplayMode.RGB
+    
     timer = HardwareTimer.create(1000, lambda fps: print(f"{fps:.1f}"))
     with except_raise():
-        cam.begin()
+        camera.begin()
 
     while not channel.should_terminate():
-       
-        with except_continue():
-            processor = channel.recv_processor()
-
-        with except_continue():
-            display_mode = channel.recv_display_mode()
-
-        with except_continue():
-            cam.config = channel.recv_camera_config()
-
-        channel.sync_camera_config(cam)
+        new_display_mode = sync_updates(channel, camera, display_mode, processor)
+        if new_display_mode is not None: display_mode = new_display_mode
 
         try:
-            frame_data, capture = capture_next_frame(cam, processor)
+            frame_data, capture = capture_next_frame(camera, processor)
         except Exception as ex:
             print(f"Capture Error: {ex}")
             continue
+
+        timer.frame(frame_data.timestamp)
 
         if channel.should_calculate():
             with except_continue("Gauss fit exception"):
@@ -117,33 +113,37 @@ def dispatch_run(screen: pygame.Surface, cam: Camera, channel: Channel) -> None:
 
             if channel.should_record():
                 if file is None:
-                    localtime = time.localtime()
-                    file = open(f"./record/{cam.name}-{localtime.tm_year}{localtime.tm_mon:02d}{localtime.tm_mday:02d}-{localtime.tm_hour:02d}{localtime.tm_min:02d}.csv", "w", newline="")
+                    file = open(utils.get_filename(camera.name), "w", newline="")
                     writer = csv.DictWriter(file, fieldnames=record_dict.keys())
                     writer.writeheader()
                 writer.writerow(record_dict)
                 file.flush()
         
-        show_frame: Frame
-        match display_mode:
-            case DisplayMode.NONE:
-                show_frame = numpy.zeros((1000, 800, 3), numpy.uint8)
-            case DisplayMode.RGB:
-                show_frame = capture.rgb
-            case DisplayMode.MONO:
-                show_frame = utils.expand_mono_rgb(capture.mono)
-            case DisplayMode.PROCESSED:
-                show_frame = utils.expand_mono_rgb(capture.processed)
-        show_frame = numpy.rot90(show_frame)
-        show_surface = pygame.surfarray.make_surface(show_frame)
+        display_frame = get_display_frame(capture, display_mode)
+        display_frame = numpy.rot90(display_frame)
+        show_surface = pygame.surfarray.make_surface(display_frame)
         screen.blit(show_surface, (0, 0))
         pygame.display.flip()
-        
-        timer.frame(frame_data.timestamp)
-    
-    cam.end()
+
+        if channel.should_save_subimage():
+            utils.save_subimage(camera.name, capture.rgb)
+
+    camera.end()
     if file is not None:
         file.close()
+
+def sync_updates(channel: Channel, camera: Camera, processor: Processor) -> DisplayMode | None:
+    with except_continue():
+        processor.updated_pipline(channel.recv_processor())
+
+    with except_continue():
+        camera.config = channel.recv_camera_config()
+
+    channel.sync_camera_config(camera)
+
+    with except_continue():
+        return channel.recv_display_mode()    
+    return None
 
 def capture_next_frame(cam: Camera, processor: Processor) -> tuple[FrameData, Capture]:
     frame_data, frame = cam.acquire()
@@ -163,3 +163,12 @@ def capture_next_frame(cam: Camera, processor: Processor) -> tuple[FrameData, Ca
 
     processed_frame = processor.process(mono_frame)
     return frame_data, Capture(rgb_frame, mono_frame, processed_frame)
+
+def get_display_frame(capture: Capture, display_mode: DisplayMode) -> Frame:
+    match display_mode:
+        case DisplayMode.RGB:
+            return capture.rgb
+        case DisplayMode.MONO:
+            return utils.expand_mono_rgb(capture.mono)
+        case DisplayMode.PROCESSED:
+            return utils.expand_mono_rgb(capture.processed)

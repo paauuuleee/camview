@@ -2,7 +2,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from contextlib import contextmanager
 
-from processor import Processor
+from processor import Pipeline, FrameFilter
 from utils import DisplayMode
 from camera import CameraConfig, Camera
 
@@ -16,10 +16,21 @@ class ExitMsg:
 
 @dataclass
 class Channel:
-    def __init__(self, sig_term, sig_calc, sig_record, display_mode_queue: Queue, processor_queue: Queue, cam_config_queue: Queue, sig_request_cam_config, cam_config_respond_queue: Queue):
+    def __init__(
+            self, 
+            sig_term, 
+            sig_calc, 
+            sig_record,
+            sig_save_subimage,
+            display_mode_queue: Queue, 
+            processor_queue: Queue, 
+            cam_config_queue: Queue, 
+            sig_request_cam_config, 
+            cam_config_respond_queue: Queue):
         self._sig_term = sig_term
         self._sig_calc = sig_calc
         self._sig_record = sig_record
+        self._sig_save_subimage = sig_save_subimage
         self._display_mode_queue = display_mode_queue
         self._processor_queue = processor_queue
         self._cam_config_queue = cam_config_queue
@@ -33,19 +44,30 @@ class Channel:
         sig_term = mp.Event()
         sig_calc = mp.Event()
         sig_record = mp.Event()
+        sig_save_subimage = mp.Event()
         display_mode_queue = Queue(maxsize=1)
         processor_queue = Queue(maxsize=1)
         cam_config_queue = Queue(maxsize=1)
         sig_request_cam_config = mp.Event()
         cam_config_respond_queue = Queue(maxsize=1)
 
-        return cls(sig_term, sig_calc, sig_record, display_mode_queue, processor_queue, cam_config_queue, sig_request_cam_config, cam_config_respond_queue)
+        return cls(
+            sig_term, 
+            sig_calc, 
+            sig_record, 
+            sig_save_subimage,
+            display_mode_queue, 
+            processor_queue, 
+            cam_config_queue, 
+            sig_request_cam_config, 
+            cam_config_respond_queue
+        )
     
-    def recv_processor(self) -> Processor:
+    def recv_filters(self) -> Pipeline:
         return self._processor_queue.get(block=False)
 
-    def send_processor(self, processor: Processor) -> None:
-        self._processor_queue.put(processor)
+    def send_filters(self, *filters: FrameFilter) -> None:
+        self._processor_queue.put(filters)
 
     def recv_display_mode(self) -> DisplayMode:
         return self._display_mode_queue.get(block=False)
@@ -79,6 +101,14 @@ class Channel:
 
     def should_record(self) -> bool:
         return self._sig_record.is_set()
+    
+    def save_subimage(self) -> None:
+        self._sig_save_subimage.set()
+
+    def should_save_subimage(self) -> bool:
+        should_save_subimage = self._sig_save_subimage.is_set()
+        self._sig_save_subimage.clear()
+        return should_save_subimage
 
     def request_camera_config(self) -> CameraConfig:
         self._sig_request_cam_config.set()

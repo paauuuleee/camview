@@ -38,6 +38,10 @@ class HardwareTimer:
             self._epoch_start_time = timestamp
             self._frame_count = 0
 
+    def reset(self) -> None:
+        self._epoch_count = -1
+        self._epoch_start_time = 0
+
 
 class Timer:
     """
@@ -167,10 +171,9 @@ class CaptureFormat:
     RGB8 = "RGB8"
 
 class DisplayMode:
-    NONE = 0
-    RGB = 1
-    MONO = 2
-    PROCESSED = 3
+    RGB = 0
+    MONO = 1
+    PROCESSED = 2
 
 @dataclass
 class FrameData:
@@ -190,6 +193,13 @@ def convert_rgb_mono(frame: Frame) -> Frame:
 
 def expand_mono_rgb(frame: Frame) -> Frame:
     return cv2.cvtColor(frame, cv2.COLOR_GRAY2RGB)
+
+def get_filename(camera_name: str) -> str:
+    lt = time.localtime()
+    return f"./record/{camera_name}-{lt.tm_year}{lt.tm_mon:02d}{lt.tm_mday:02d}-{lt.tm_hour:02d}{lt.tm_min:02d}.csv"
+
+def save_subimage(camera_name: str, frame: Frame) -> None:
+    cv2.imwrite(f"./config/{camera_name}.png", frame)
 
 def project(frame: Frame) -> tuple[numpy.array[int], numpy.array[int]]:
     hori_dist = numpy.sum(frame, 0)
